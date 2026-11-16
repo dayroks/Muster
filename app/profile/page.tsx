@@ -5,6 +5,7 @@ import type { ComponentType } from 'react';
 import Link from 'next/link';
 import {
   User,
+  AtSign,
   Pencil,
   ArrowLeft,
   Save,
@@ -29,9 +30,11 @@ import FullScreenLoader from '@/components/FullScreenLoader';
 
 const BUCKET = 'avatars';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const HANDLE_RE = /^[a-z0-9_]{4,20}$/;
 
 type ProfileData = {
-  username: string;
+  username: string; // нікнейм (ім'я, що відображається)
+  handle: string; // унікальний @username
   bio: string;
   telegram: string;
   youtube: string;
@@ -42,6 +45,7 @@ type ProfileData = {
 
 const EMPTY: ProfileData = {
   username: '',
+  handle: '',
   bio: '',
   telegram: '',
   youtube: '',
@@ -145,6 +149,7 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<ImageKind | null>(null);
+  const [handleError, setHandleError] = useState('');
   const [toast, setToast] = useState<Toast>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -156,7 +161,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('username, bio, telegram, youtube, instagram, avatar_url, banner_url')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -166,6 +171,7 @@ export default function ProfilePage() {
         } else if (data) {
           setProfile({
             username: data.username ?? '',
+            handle: data.handle ?? '',
             bio: data.bio ?? '',
             telegram: data.telegram ?? '',
             youtube: data.youtube ?? '',
@@ -187,6 +193,7 @@ export default function ProfilePage() {
 
   const startEditing = () => {
     setDraft(profile);
+    setHandleError('');
     setIsEditing(true);
   };
 
@@ -230,6 +237,7 @@ export default function ProfilePage() {
 
     const next: ProfileData = {
       username: draft.username.trim(),
+      handle: draft.handle.trim().replace(/^@+/, '').toLowerCase(),
       bio: draft.bio.trim(),
       telegram: draft.telegram.trim(),
       youtube: draft.youtube.trim(),
@@ -239,13 +247,52 @@ export default function ProfilePage() {
     };
     if (!next.username) return;
 
+    // 1. Перевірка формату юзернейма (поле необов'язкове, але якщо заповнене, то валідне)
+    if (next.handle) {
+      if (next.handle.length < 4) {
+        setHandleError('Username must be at least 4 characters');
+        return;
+      }
+      if (next.handle.length > 20) {
+        setHandleError('Username must be 20 characters or less');
+        return;
+      }
+      if (!HANDLE_RE.test(next.handle)) {
+        setHandleError('Use only letters, numbers and underscores');
+        return;
+      }
+    }
+    setHandleError('');
     setSaving(true);
 
-    // RLS дозволяє update лише для рядка, де auth.uid() = id
+    // 2. Перевірка унікальності (окрім поточного користувача)
+    if (next.handle && next.handle !== profile.handle) {
+      const { data: taken, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('handle', next.handle)
+        .neq('id', user.id)
+        .limit(1);
+
+      if (checkError) {
+        console.error('Username check error:', checkError.message);
+        setToast({ type: 'error', text: 'Could not check username' });
+        setSaving(false);
+        return;
+      }
+      if (taken && taken.length > 0) {
+        setHandleError('This username is already taken');
+        setSaving(false);
+        return;
+      }
+    }
+
+    // 3. Збереження (RLS дозволяє update лише для рядка, де auth.uid() = id)
     const { data, error } = await supabase
       .from('profiles')
       .update({
         username: next.username,
+        handle: next.handle || null,
         bio: next.bio,
         telegram: next.telegram,
         youtube: next.youtube,
@@ -260,10 +307,18 @@ export default function ProfilePage() {
 
     if (error) {
       console.error('Supabase update error:', error.message);
-      setToast({
-        type: 'error',
-        text: error.code === '23505' ? 'This nickname is already taken' : 'Could not save profile',
-      });
+      if (error.code === '23505') {
+        // унікальний індекс: гонка між двома користувачами або інше обмеження
+        if (error.message.includes('handle')) {
+          setHandleError('This username is already taken');
+        } else {
+          setToast({ type: 'error', text: 'This nickname is already taken' });
+        }
+      } else if (error.code === '23514') {
+        setHandleError('Use 4-20 letters, numbers or underscores');
+      } else {
+        setToast({ type: 'error', text: 'Could not save profile' });
+      }
       return; // залишаємось у режимі редагування
     }
 
@@ -277,10 +332,9 @@ export default function ProfilePage() {
     setToast({ type: 'success', text: 'Profile saved!' });
   };
 
-  const handle = profile.username.toLowerCase().replace(/\s+/g, '');
-
   const handleShare = async () => {
-    const text = `Add me on Muster: @${handle}`;
+    const who = profile.handle ? `@${profile.handle}` : profile.username;
+    const text = `Add me on Muster: ${who}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: 'Muster', text });
@@ -380,14 +434,15 @@ export default function ProfilePage() {
                 Edit Profile
               </h2>
 
+              {/* Нікнейм */}
               <div className="flex flex-col gap-2">
-                <label htmlFor="username" className={labelClass}>
+                <label htmlFor="nickname" className={labelClass}>
                   Nickname
                 </label>
                 <div className="relative">
                   <User className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
                   <input
-                    id="username"
+                    id="nickname"
                     value={draft.username}
                     onChange={(e) => setDraft({ ...draft, username: e.target.value })}
                     maxLength={24}
@@ -395,6 +450,45 @@ export default function ProfilePage() {
                     className={`${inputClass} pl-10`}
                   />
                 </div>
+              </div>
+
+              {/* Юзернейм (@) */}
+              <div className="flex flex-col gap-2">
+                <label htmlFor="handle" className={labelClass}>
+                  Username
+                </label>
+                <div className="relative">
+                  <AtSign className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    id="handle"
+                    value={draft.handle}
+                    onChange={(e) => {
+                      setHandleError('');
+                      setDraft({
+                        ...draft,
+                        handle: e.target.value.replace(/^@+/, '').replace(/\s/g, '').toLowerCase(),
+                      });
+                    }}
+                    maxLength={20}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="your_username"
+                    className={`${inputClass} pl-10 ${
+                      handleError ? 'border-red-500/60 focus:border-red-500' : ''
+                    }`}
+                  />
+                </div>
+                {handleError ? (
+                  <p className="flex items-center gap-1.5 font-inter text-xs font-medium text-red-400">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    {handleError}
+                  </p>
+                ) : (
+                  <p className="font-inter text-xs font-medium text-zinc-500">
+                    4-20 characters: letters, numbers and underscores
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-2">
@@ -491,7 +585,9 @@ export default function ProfilePage() {
                 <h2 className="font-onest text-xl font-extrabold tracking-tight text-white">
                   {profile.username || 'Player'}
                 </h2>
-                <p className="font-inter text-sm font-medium text-zinc-500">@{handle}</p>
+                <p className="font-inter text-sm font-medium text-zinc-500">
+                  {profile.handle ? `@${profile.handle}` : 'No username yet'}
+                </p>
               </div>
 
               <div className="mt-5 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
@@ -578,4 +674,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-    }
+      }
