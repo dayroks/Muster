@@ -13,18 +13,28 @@ export function useRequireAuth() {
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getUser().then(({ data }) => {
+    // getSession() чекає на ініціалізацію клієнта (відновлення сесії з
+    // localStorage або з URL після Google) і не робить мережевий запит,
+    // тому короткий збій мережі не викидає користувача на /auth/login.
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      if (data.user) {
-        setUser(data.user);
+      if (data.session) {
+        setUser(data.session.user);
         setChecking(false);
       } else {
         router.replace('/auth/login');
       }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') router.replace('/auth/login');
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === 'SIGNED_OUT') {
+        router.replace('/auth/login');
+      } else if (session) {
+        // не міняємо об'єкт user, якщо це той самий користувач
+        // (наприклад, при оновленні токена), щоб не перезапускати запити
+        setUser((prev) => (prev?.id === session.user.id ? prev : session.user));
+      }
     });
 
     return () => {
