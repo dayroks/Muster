@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, MessageCircle, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useRequireAuth } from '@/lib/useRequireAuth';
 import PageShell from '@/components/PageShell';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 type ChatUser = {
   id: string;
@@ -14,30 +16,32 @@ type ChatUser = {
 };
 
 export default function ChatsPage() {
+  const { user, checking } = useRequireAuth();
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      let myId = '';
-      try {
-        myId = localStorage.getItem('muster_user_id') ?? '';
-      } catch {}
+    if (!user) return;
 
-      const { data, error } = await supabase.from('profiles').select('*');
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', user.id);
 
       if (error) {
         console.error('Supabase error:', error.message);
         setFailed(true);
       } else {
-        // не показуємо самого себе
-        setUsers(((data as ChatUser[]) ?? []).filter((u) => u.id !== myId));
+        setUsers((data as ChatUser[]) ?? []);
       }
       setLoading(false);
     };
     load();
-  }, []);
+  }, [user]);
+
+  if (checking) return <FullScreenLoader />;
 
   return (
     <PageShell>
@@ -77,15 +81,10 @@ export default function ChatsPage() {
                   href={`/chats/chat?id=${u.id}`}
                   className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-zinc-900/60 active:bg-zinc-900"
                 >
-                  {/* Аватарка */}
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
                     {u.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={u.avatar_url}
-                        alt={name}
-                        className="h-full w-full object-cover"
-                      />
+                      <img src={u.avatar_url} alt={name} className="h-full w-full object-cover" />
                     ) : (
                       <span className="font-onest text-lg font-extrabold text-black">
                         {name.charAt(0).toUpperCase()}
@@ -93,7 +92,6 @@ export default function ChatsPage() {
                     )}
                   </div>
 
-                  {/* Ім'я та статус */}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-inter font-bold text-white">{name}</p>
                     <p className="truncate font-inter text-sm font-medium text-zinc-500">
