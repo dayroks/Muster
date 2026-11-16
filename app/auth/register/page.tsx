@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, User, UserPlus, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AuthShell from '@/components/AuthShell';
+import GoogleButton from '@/components/GoogleButton';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -50,7 +51,7 @@ export default function RegisterPage() {
 
     // Якщо підтвердження пошти вимкнене, сесія є одразу
     if (data.session) {
-      router.replace('/');
+      router.replace('/chats');
     } else {
       setConfirmSent(true);
       setLoading(false);
@@ -136,6 +137,8 @@ export default function RegisterPage() {
         </button>
       </form>
 
+      <GoogleButton onError={setError} />
+
       <p className="mt-6 text-center font-inter text-sm font-medium text-zinc-500">
         Already have an account?{' '}
         <Link href="/auth/login" className="font-bold text-green-500 hover:text-green-400">
@@ -144,4 +147,4 @@ export default function RegisterPage() {
       </p>
     </AuthShell>
   );
-        }
+          }
