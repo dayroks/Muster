@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, LogIn, Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AuthShell from '@/components/AuthShell';
+import GoogleButton from '@/components/GoogleButton';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,10 +15,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Якщо вже увійшов, одразу в додаток
+  // Якщо сесія вже є, одразу в додаток
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace('/');
+      if (data.session) router.replace('/chats');
     });
   }, [router]);
 
@@ -39,7 +40,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace('/');
+    router.replace('/chats');
   };
 
   const inputClass =
@@ -89,6 +90,8 @@ export default function LoginPage() {
         </button>
       </form>
 
+      <GoogleButton onError={setError} />
+
       <p className="mt-6 text-center font-inter text-sm font-medium text-zinc-500">
         Don&apos;t have an account?{' '}
         <Link href="/auth/register" className="font-bold text-green-500 hover:text-green-400">
@@ -97,4 +100,4 @@ export default function LoginPage() {
       </p>
     </AuthShell>
   );
-          }
+}
