@@ -3,26 +3,51 @@
 import { useEffect, useState } from 'react';
 import { Search, SlidersHorizontal, UserPlus, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useRequireAuth } from '@/lib/useRequireAuth';
 import PlayerCard, { Player } from '@/components/PlayerCard';
 import PageShell from '@/components/PageShell';
+import FullScreenLoader from '@/components/FullScreenLoader';
+
+type ProfileRow = {
+  id: string;
+  username: string | null;
+  game?: string | null;
+  status?: string | null;
+};
 
 export default function Home() {
+  const { user, checking } = useRequireAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
+    if (!user) return;
+
     const loadPlayers = async () => {
-      const { data, error } = await supabase.from('profiles').select('*');
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', user.id);
+
       if (error) {
         console.error('Supabase error:', error.message);
       } else {
-        setPlayers((data as Player[]) ?? []);
+        setPlayers(
+          ((data as ProfileRow[]) ?? []).map((p) => ({
+            id: p.id,
+            nickname: p.username ?? 'Player',
+            game: p.game ?? 'No game set',
+            status: p.status ?? 'offline',
+          }))
+        );
       }
       setLoading(false);
     };
     loadPlayers();
-  }, []);
+  }, [user]);
+
+  if (checking) return <FullScreenLoader />;
 
   const filtered = players.filter((p) => {
     const q = query.trim().toLowerCase();
