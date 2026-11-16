@@ -11,6 +11,8 @@ import FullScreenLoader from '@/components/FullScreenLoader';
 type ProfileRow = {
   id: string;
   username: string | null;
+  handle?: string | null;
+  avatar_url?: string | null;
   game?: string | null;
   status?: string | null;
 };
@@ -37,7 +39,9 @@ export default function Home() {
           ((data as ProfileRow[]) ?? []).map((p) => ({
             id: p.id,
             nickname: p.username ?? 'Player',
-            game: p.game ?? 'No game set',
+            handle: p.handle ?? '',
+            avatarUrl: p.avatar_url ?? '',
+            game: p.game ?? '',
             status: p.status ?? 'offline',
           }))
         );
@@ -49,10 +53,15 @@ export default function Home() {
 
   if (checking) return <FullScreenLoader />;
 
+  // Пошук за нікнеймом, юзернеймом (з @ або без) та грою
+  const q = query.trim().toLowerCase().replace(/^@/, '');
   const filtered = players.filter((p) => {
-    const q = query.trim().toLowerCase();
     if (!q) return true;
-    return p.nickname?.toLowerCase().includes(q) || p.game?.toLowerCase().includes(q);
+    return (
+      p.nickname.toLowerCase().includes(q) ||
+      (p.handle ?? '').toLowerCase().includes(q) ||
+      (p.game ?? '').toLowerCase().includes(q)
+    );
   });
 
   return (
@@ -68,7 +77,7 @@ export default function Home() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search a player..."
+            placeholder="Search by name or @username"
             className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-3 pl-10 pr-3 font-inter font-medium text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-green-500"
           />
         </div>
@@ -88,7 +97,7 @@ export default function Home() {
             <Users className="h-8 w-8 text-zinc-500" />
           </div>
           <p className="font-inter font-medium text-zinc-400">
-            No players online right now. Be the first!
+            {q ? 'No players found.' : 'No players online right now. Be the first!'}
           </p>
         </div>
       ) : (
