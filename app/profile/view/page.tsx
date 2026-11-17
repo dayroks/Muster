@@ -89,7 +89,7 @@ function ViewInner() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-md pb-10">
+      <main className="other-profile-main mx-auto max-w-md pb-10">
         {loading ? (
           <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
         ) : !profile ? (
@@ -97,10 +97,11 @@ function ViewInner() {
             Profile not found.
           </p>
         ) : (
-          <div>
-            <Banner url={profile.bannerUrl} />
+          <div className="other-profile-layout">
+            <div className="other-profile-banner"><Banner url={profile.bannerUrl} /></div>
 
-            <div className="px-4">
+            <div className="other-profile-content px-4">
+              <div className="other-profile-identity">
               <div className="mx-auto -mt-12 h-24 w-24">
                 <AvatarCircle url={profile.avatarUrl} name={profile.username} />
               </div>
@@ -115,8 +116,9 @@ function ViewInner() {
                   </p>
                 )}
               </div>
+              </div>
 
-              <div className="mt-5 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              <div className="other-profile-info mt-5 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                 <InfoRow
                   Icon={Info}
                   color="text-zinc-400"
