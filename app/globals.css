@@ -260,45 +260,51 @@ body { background: #080d12; }
 }
 .muster-glass-nav__item.is-active::before { background: linear-gradient(145deg, rgba(210,245,222,.08), transparent 58%); }
 
-/* Keep the complete uploaded banner visible instead of cropping it with object-fit: cover. */
+```css
+/* Profile banners — fill the entire container */
 .profile-view > .profile-banner,
 .other-profile-banner {
   height: 300px;
   min-height: 0;
   background: #080d12;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   overflow: hidden;
+  border-radius: 28px;
 }
+
 .profile-view > .profile-banner img,
 .other-profile-banner img {
   display: block;
-  width: 100%;
+  width: 100% !important;
   height: 100% !important;
-  max-height: 100%;
-  object-fit: contain !important;
+  max-height: none !important;
+  object-fit: cover !important;
   object-position: center;
-  background: #080d12;
 }
+
 .profile-view > .profile-banner > div,
 .other-profile-banner > div {
   width: 100%;
   height: 100% !important;
 }
+
 @media (max-width: 900px) {
   .profile-view > .profile-banner,
   .other-profile-banner {
+    width: 100%;
     height: auto;
     aspect-ratio: 2.25 / 1;
     min-height: 100px;
     max-height: 220px;
     border-radius: 0;
   }
+
   .profile-view > .profile-banner img,
   .other-profile-banner img {
-    width: 100%;
+    width: 100% !important;
     height: 100% !important;
-    object-fit: contain !important;
+    object-fit: cover !important;
+    object-position: center;
   }
 }
+```
