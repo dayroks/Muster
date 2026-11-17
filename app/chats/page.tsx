@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { MessageCircle, Users } from 'lucide-react';
+import { MessageCircle, Search, Users, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import PageShell from '@/components/PageShell';
@@ -22,6 +23,10 @@ type Peer = {
   avatar_url: string | null;
 };
 
+type SearchUser = Peer & { handle: string | null };
+
+const SEARCH_COLUMNS = 'id, username, handle, avatar_url';
+
 // Час у стилі Telegram: сьогодні HH:MM, вчора, день тижня, інакше дата
 function formatListTime(iso: string) {
   const d = new Date(iso);
@@ -37,24 +42,75 @@ function formatListTime(iso: string) {
   return d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+// Спільний рядок списку (і для активних чатів, і для результатів пошуку)
+function UserRow({
+  href,
+  name,
+  avatarUrl,
+  subtitle,
+  time,
+}: {
+  href: string;
+  name: string;
+  avatarUrl?: string | null;
+  subtitle: ReactNode;
+  time?: string;
+}) {
+  return (
+    <li className="border-b border-zinc-800/50">
+      <Link
+        href={href}
+        className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-zinc-900/60 active:bg-zinc-900"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+          ) : (
+            <span className="font-onest text-lg font-extrabold text-black">
+              {name.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-inter font-bold text-white">{name}</p>
+          <p className="truncate font-inter text-sm font-medium text-zinc-500">{subtitle}</p>
+        </div>
+
+        {time && (
+          <span className="shrink-0 self-start pt-1 font-inter text-xs font-medium text-zinc-500">
+            {time}
+          </span>
+        )}
+      </Link>
+    </li>
+  );
+}
+
 export default function ChatsPage() {
   const { user, checking } = useRequireAuth();
 
-  // peerId -> останнє повідомлення переписки
+  /* ---------- Активні чати ---------- */
   const [last, setLast] = useState<Record<string, Message>>({});
-  // peerId -> профіль співрозмовника
   const [profiles, setProfiles] = useState<Record<string, Peer>>({});
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-
   const profilesRef = useRef<Record<string, Peer>>({});
 
+  /* ---------- Глобальний пошук ---------- */
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchUser[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const searchSeq = useRef(0);
+
+  // Історія повідомлень + realtime
   useEffect(() => {
     if (!user) return;
     const me = user.id;
     let active = true;
 
-    // Підвантажує профілі лише тих співрозмовників, яких ще немає в стані
     const ensureProfiles = async (ids: string[]) => {
       const missing = ids.filter((id) => !profilesRef.current[id]);
       if (missing.length === 0) return;
@@ -78,7 +134,6 @@ export default function ChatsPage() {
       setProfiles(profilesRef.current);
     };
 
-    // Зберігає повідомлення як останнє, лише якщо воно новіше за вже відоме
     const applyMessage = (m: Message) => {
       const peer = m.sender_id === me ? m.receiver_id : m.sender_id;
       if (peer === me) return;
@@ -91,7 +146,6 @@ export default function ChatsPage() {
       ensureProfiles([peer]);
     };
 
-    // 1. Усі мої повідомлення (відправлені або отримані), від новіших до старіших
     const load = async () => {
       const { data, error } = await supabase
         .from('messages')
@@ -109,7 +163,6 @@ export default function ChatsPage() {
         return;
       }
 
-      // 2. Унікальні співрозмовники: перше повідомлення в списку і є останнім
       const latest: Record<string, Message> = {};
       ((data as Message[]) ?? []).forEach((m) => {
         const peer = m.sender_id === me ? m.receiver_id : m.sender_id;
@@ -125,12 +178,10 @@ export default function ChatsPage() {
         return merged;
       });
 
-      // 3. Профілі лише цих користувачів
       await ensureProfiles(Object.keys(latest));
       if (active) setLoading(false);
     };
 
-    // Realtime: нові повідомлення оновлюють список без перезавантаження
     const channel = supabase
       .channel(`chats-list-${me}`)
       .on(
@@ -153,7 +204,72 @@ export default function ChatsPage() {
     };
   }, [user]);
 
-  // 4. Сортування за часом останнього повідомлення (новіші вище)
+  // Глобальний пошук по profiles (з паузою 300 мс)
+  useEffect(() => {
+    if (!user) return;
+    const me = user.id;
+    const raw = query.trim().replace(/^@+/, '');
+    const seq = ++searchSeq.current; // нова відповідь скасовує застарілі
+
+    if (!raw) {
+      setResults([]);
+      setSearchLoading(false);
+      setSearchFailed(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchFailed(false);
+
+    const timer = setTimeout(async () => {
+      // екрануємо символи LIKE, щоб "_" і "%" шукались як звичайні символи
+      const pattern = `%${raw.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+      const [byName, byHandle] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select(SEARCH_COLUMNS)
+          .neq('id', me)
+          .ilike('username', pattern)
+          .limit(30),
+        supabase
+          .from('profiles')
+          .select(SEARCH_COLUMNS)
+          .neq('id', me)
+          .ilike('handle', pattern)
+          .limit(30),
+      ]);
+
+      if (seq !== searchSeq.current) return;
+
+      if (byName.error) console.error('Search (name) error:', byName.error.message);
+      if (byHandle.error) console.error('Search (username) error:', byHandle.error.message);
+
+      if (byName.error && byHandle.error) {
+        setSearchFailed(true);
+        setResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      // об'єднуємо результати без дублікатів
+      const map = new Map<string, SearchUser>();
+      [...((byName.data as SearchUser[]) ?? []), ...((byHandle.data as SearchUser[]) ?? [])].forEach(
+        (u) => map.set(u.id, u)
+      );
+
+      setResults(
+        Array.from(map.values())
+          .sort((a, b) => (a.username ?? '').localeCompare(b.username ?? ''))
+          .slice(0, 30)
+      );
+      setSearchLoading(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, user]);
+
+  // Активні чати за часом останнього повідомлення
   const items = useMemo(
     () =>
       Object.entries(last)
@@ -167,20 +283,71 @@ export default function ChatsPage() {
 
   if (checking) return <FullScreenLoader />;
 
+  const isSearching = query.trim() !== '';
+
   return (
     <PageShell>
-      <h2 className="mb-2 font-onest text-2xl font-extrabold tracking-tight text-white">
+      <h2 className="mb-4 font-onest text-2xl font-extrabold tracking-tight text-white">
         Chats
       </h2>
 
-      {loading ? (
+      {/* Поле пошуку */}
+      <div className="relative mb-3">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search users by name or @username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-3 pl-10 pr-10 font-inter font-medium text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-green-500"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+
+      {isSearching ? (
+        /* ---------- РЕЖИМ ПОШУКУ (по всій базі) ---------- */
+        searchLoading ? (
+          <p className="py-16 text-center font-inter font-medium text-zinc-500">Searching...</p>
+        ) : searchFailed ? (
+          <p className="py-16 text-center font-inter font-medium text-zinc-500">
+            Search failed. Try again later.
+          </p>
+        ) : results.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900">
+              <Search className="h-8 w-8 text-zinc-500" />
+            </div>
+            <p className="font-inter font-medium text-zinc-400">No users found</p>
+          </div>
+        ) : (
+          <ul className="-mx-4">
+            {results.map((u) => (
+              <UserRow
+                key={u.id}
+                href={`/chats/chat?id=${u.id}`}
+                name={u.username || 'Unknown'}
+                avatarUrl={u.avatar_url}
+                subtitle={u.handle ? `@${u.handle}` : 'No username yet'}
+              />
+            ))}
+          </ul>
+        )
+      ) : /* ---------- АКТИВНІ ЧАТИ ---------- */ loading ? (
         <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
       ) : failed ? (
         <p className="py-16 text-center font-inter font-medium text-zinc-500">
           Couldn&apos;t load chats. Try again later.
         </p>
       ) : items.length === 0 ? (
-        /* 6. Порожній стан */
         <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900">
             <MessageCircle className="h-8 w-8 text-zinc-500" />
@@ -188,7 +355,7 @@ export default function ChatsPage() {
           <div>
             <p className="font-inter font-bold text-white">No chats yet</p>
             <p className="mt-1 font-inter font-medium text-zinc-400">
-              Find players to start messaging!
+              Search for a user above or find players to start messaging!
             </p>
           </div>
           <Link
@@ -202,50 +369,25 @@ export default function ChatsPage() {
       ) : (
         <ul className="-mx-4">
           {items.map(({ peerId, msg, peer }) => {
-            const name = peer?.username || 'Unknown';
             const mine = msg.sender_id === user?.id;
-
             return (
-              <li key={peerId} className="border-b border-zinc-800/50">
-                <Link
-                  href={`/chats/chat?id=${peerId}`}
-                  className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-zinc-900/60 active:bg-zinc-900"
-                >
-                  {/* Аватарка */}
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
-                    {peer?.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={peer.avatar_url}
-                        alt={name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="font-onest text-lg font-extrabold text-black">
-                        {name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Ім'я та останнє повідомлення */}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-inter font-bold text-white">{name}</p>
-                    <p className="truncate font-inter text-sm font-medium text-zinc-500">
-                      {mine && <span className="text-zinc-400">You: </span>}
-                      {msg.content}
-                    </p>
-                  </div>
-
-                  {/* Час */}
-                  <span className="shrink-0 self-start pt-1 font-inter text-xs font-medium text-zinc-500">
-                    {formatListTime(msg.created_at)}
-                  </span>
-                </Link>
-              </li>
+              <UserRow
+                key={peerId}
+                href={`/chats/chat?id=${peerId}`}
+                name={peer?.username || 'Unknown'}
+                avatarUrl={peer?.avatar_url}
+                subtitle={
+                  <>
+                    {mine && <span className="text-zinc-400">You: </span>}
+                    {msg.content}
+                  </>
+                }
+                time={formatListTime(msg.created_at)}
+              />
             );
           })}
         </ul>
       )}
     </PageShell>
   );
-        }
+      }
