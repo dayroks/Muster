@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Search, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import BottomNav from '@/components/BottomNav';
@@ -37,6 +37,7 @@ function ChatInner() {
   const myId = user?.id ?? '';
 
   const [peerName, setPeerName] = useState('');
+  const [chatPeers, setChatPeers] = useState<Array<{ id: string; username: string; avatar_url: string | null; lastText: string }>>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -47,6 +48,31 @@ function ChatInner() {
   const didInitialScroll = useRef(false);
 
   const idsValid = UUID_RE.test(myId) && UUID_RE.test(peerId) && myId !== peerId;
+
+  // Список діалогів для desktop sidebar (ті самі повідомлення Supabase)
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const loadPeers = async () => {
+      const { data } = await supabase.from('messages').select('*')
+        .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
+        .order('created_at', { ascending: false }).limit(500);
+      if (!alive || !data) return;
+      const latest = new Map<string, Message>();
+      (data as Message[]).forEach((m) => {
+        const id = m.sender_id === myId ? m.receiver_id : m.sender_id;
+        if (id !== myId && !latest.has(id)) latest.set(id, m);
+      });
+      const ids = Array.from(latest.keys());
+      if (!ids.length) { setChatPeers([]); return; }
+      const { data: people } = await supabase.from('profiles').select('id, username, avatar_url').in('id', ids);
+      if (!alive) return;
+      const byId = new Map<string, { username: string | null; avatar_url: string | null }>((((people ?? []) as Array<{ id: string; username: string | null; avatar_url: string | null }>).map((p) => [p.id, p])));
+      setChatPeers(ids.map((id) => ({ id, username: byId.get(id)?.username || 'Player', avatar_url: byId.get(id)?.avatar_url || null, lastText: latest.get(id)?.content || '' })));
+    };
+    loadPeers();
+    return () => { alive = false; };
+  }, [user, myId]);
 
   // Ім'я співрозмовника
   useEffect(() => {
@@ -159,9 +185,9 @@ function ChatInner() {
   if (checking) return <FullScreenLoader />;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-zinc-950 desktop-chat-page">
       <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-4">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-6 py-4">
           <Link
             href="/chats"
             aria-label="Back"
@@ -175,7 +201,19 @@ function ChatInner() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-md px-4 pb-40 pt-4">
+      <div className="desktop-chat-workspace">
+      <aside className="desktop-chat-sidebar">
+        <div className="desktop-chat-sidebar__head"><strong>Messages</strong><span>{chatPeers.length}</span></div>
+        <div className="desktop-chat-sidebar__search"><Search className="h-4 w-4"/><span>Search conversations</span></div>
+        <div className="desktop-chat-sidebar__items">
+          {chatPeers.map((peer) => <Link key={peer.id} href={`/chats/chat?id=${peer.id}`} className={`desktop-chat-peer ${peer.id === peerId ? 'is-current' : ''}`}>
+            <div className="desktop-chat-peer__avatar">{peer.avatar_url ? <img src={peer.avatar_url} alt=""/> : peer.username.charAt(0).toUpperCase()}</div>
+            <div><b>{peer.username}</b><small>{peer.lastText}</small></div>
+          </Link>)}
+          {!chatPeers.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No conversations yet</p>}
+        </div>
+      </aside>
+      <main className="desktop-chat-conversation">
         {loading ? (
           <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
         ) : !idsValid ? (
@@ -217,13 +255,14 @@ function ChatInner() {
         )}
         <div ref={bottomRef} className="scroll-mb-36" />
       </main>
+      </div>
 
       {idsValid && (
         <div
           className="fixed inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur-md"
-          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+          style={{ bottom: 'calc(7rem + env(safe-area-inset-bottom))' }}
         >
-          <div className="mx-auto max-w-md px-4 py-3">
+          <div className="mx-auto w-full max-w-6xl px-6 py-3">
             {error && (
               <p className="mb-2 font-inter text-xs font-medium text-red-400">{error}</p>
             )}
