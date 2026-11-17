@@ -33,8 +33,8 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 const HANDLE_RE = /^[a-z0-9_]{4,20}$/;
 
 type ProfileData = {
-  username: string; // нікнейм (ім'я, що відображається)
-  handle: string; // унікальний @username
+  username: string;
+  handle: string;
   bio: string;
   telegram: string;
   youtube: string;
@@ -72,8 +72,6 @@ function normalizeLink(kind: 'telegram' | 'youtube' | 'instagram', raw: string) 
   if (v.startsWith('@')) return `https://instagram.com/${v.slice(1)}`;
   return `https://${v}`;
 }
-
-/* ---------- Допоміжні компоненти ---------- */
 
 function Banner({ url }: { url: string }) {
   return url ? (
@@ -138,8 +136,6 @@ function InfoRow({
   );
 }
 
-/* ---------- Сторінка ---------- */
-
 export default function ProfilePage() {
   const { user, checking } = useRequireAuth();
 
@@ -155,7 +151,6 @@ export default function ProfilePage() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Завантаження профілю з Supabase
   useEffect(() => {
     if (!user) return;
 
@@ -184,7 +179,6 @@ export default function ProfilePage() {
       });
   }, [user]);
 
-  // Автоматично ховаємо повідомлення
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -197,7 +191,6 @@ export default function ProfilePage() {
     setIsEditing(true);
   };
 
-  // Завантаження картинки в Supabase Storage
   const handleFile = async (kind: ImageKind, file: File | undefined) => {
     if (!file || !user) return;
 
@@ -247,7 +240,6 @@ export default function ProfilePage() {
     };
     if (!next.username) return;
 
-    // 1. Перевірка формату юзернейма (поле необов'язкове, але якщо заповнене, то валідне)
     if (next.handle) {
       if (next.handle.length < 4) {
         setHandleError('Username must be at least 4 characters');
@@ -265,7 +257,6 @@ export default function ProfilePage() {
     setHandleError('');
     setSaving(true);
 
-    // 2. Перевірка унікальності (окрім поточного користувача)
     if (next.handle && next.handle !== profile.handle) {
       const { data: taken, error: checkError } = await supabase
         .from('profiles')
@@ -287,7 +278,6 @@ export default function ProfilePage() {
       }
     }
 
-    // 3. Збереження (RLS дозволяє update лише для рядка, де auth.uid() = id)
     const { data, error } = await supabase
       .from('profiles')
       .update({
@@ -308,7 +298,6 @@ export default function ProfilePage() {
     if (error) {
       console.error('Supabase update error:', error.message);
       if (error.code === '23505') {
-        // унікальний індекс: гонка між двома користувачами або інше обмеження
         if (error.message.includes('handle')) {
           setHandleError('This username is already taken');
         } else {
@@ -319,7 +308,7 @@ export default function ProfilePage() {
       } else {
         setToast({ type: 'error', text: 'Could not save profile' });
       }
-      return; // залишаємось у режимі редагування
+      return;
     }
 
     if (!data || data.length === 0) {
@@ -342,9 +331,7 @@ export default function ProfilePage() {
         await navigator.clipboard.writeText(text);
         setToast({ type: 'success', text: 'Copied to clipboard' });
       }
-    } catch {
-      // користувач закрив вікно «Поділитися»
-    }
+    } catch {}
   };
 
   if (checking || loadingProfile) return <FullScreenLoader />;
@@ -354,7 +341,7 @@ export default function ProfilePage() {
   const labelClass = 'font-inter text-sm font-medium text-zinc-400';
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-zinc-950 pb-20">
       {isEditing ? (
         <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-md items-center px-4 py-4">
@@ -371,11 +358,11 @@ export default function ProfilePage() {
         <Header />
       )}
 
-      <main className="profile-main">
+      <main>
         {isEditing ? (
           /* ---------- РЕЖИМ РЕДАГУВАННЯ ---------- */
           <div className="profile-edit-layout">
-            <div className="relative rounded-3xl overflow-hidden border border-white/10">
+            <div className="relative overflow-hidden">
               <Banner url={draft.bannerUrl} />
               <button
                 onClick={() => bannerInputRef.current?.click()}
@@ -429,12 +416,11 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="profile-edit-fields flex flex-col gap-5 px-4 pt-6">
+            <div className="flex flex-col gap-5 px-4 pt-6 mx-auto max-w-md">
               <h2 className="text-center font-onest text-xl font-extrabold tracking-tight text-white">
                 Edit Profile
               </h2>
 
-              {/* Нікнейм */}
               <div className="flex flex-col gap-2">
                 <label htmlFor="nickname" className={labelClass}>
                   Nickname
@@ -452,7 +438,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Юзернейм (@) */}
               <div className="flex flex-col gap-2">
                 <label htmlFor="handle" className={labelClass}>
                   Username
@@ -545,7 +530,7 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div className="profile-edit-actions mt-2 flex flex-col gap-3">
+              <div className="mt-2 flex flex-col gap-3 pb-8">
                 <button
                   onClick={handleSave}
                   disabled={!draft.username.trim() || saving || uploading !== null}
@@ -566,12 +551,11 @@ export default function ProfilePage() {
           </div>
         ) : (
           /* ---------- РЕЖИМ ПЕРЕГЛЯДУ ---------- */
-          <div className="profile-view">
-            <div className="profile-banner"><Banner url={profile.bannerUrl} /></div>
+          <div className="relative w-full">
+            <Banner url={profile.bannerUrl} />
 
-            <div className="profile-details">
-              <div className="profile-identity">
-                <div className="profile-avatar-wrap relative h-24 w-24">
+            <div className="relative -mt-12 flex flex-col items-center px-4">
+              <div className="relative h-24 w-24">
                 <AvatarCircle url={profile.avatarUrl} name={profile.username} />
                 <button
                   onClick={startEditing}
@@ -580,18 +564,18 @@ export default function ProfilePage() {
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
-                </div>
-                <div className="profile-name mt-3 text-center">
+              </div>
+
+              <div className="mt-3 text-center">
                 <h2 className="font-onest text-xl font-extrabold tracking-tight text-white">
                   {profile.username || 'Player'}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
                   {profile.handle ? `@${profile.handle}` : 'No username yet'}
                 </p>
-                </div>
               </div>
 
-              <div className="profile-info-card mt-5 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              <div className="mt-5 flex w-full max-w-md flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                 <InfoRow
                   Icon={Info}
                   color="text-zinc-400"
@@ -627,7 +611,7 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <div className="profile-actions mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-4 grid w-full max-w-md grid-cols-3 gap-2 pb-6">
                 <button
                   onClick={startEditing}
                   className="flex flex-col items-center gap-1 rounded-xl bg-green-500 py-3 font-inter text-xs font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400"
@@ -675,4 +659,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-      }
+}
