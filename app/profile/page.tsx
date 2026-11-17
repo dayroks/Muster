@@ -371,11 +371,11 @@ export default function ProfilePage() {
         <Header />
       )}
 
-      <main className="mx-auto max-w-md pb-28">
+      <main className="profile-main">
         {isEditing ? (
           /* ---------- РЕЖИМ РЕДАГУВАННЯ ---------- */
-          <div>
-            <div className="relative">
+          <div className="profile-edit-layout">
+            <div className="relative rounded-3xl overflow-hidden border border-white/10">
               <Banner url={draft.bannerUrl} />
               <button
                 onClick={() => bannerInputRef.current?.click()}
@@ -429,7 +429,7 @@ export default function ProfilePage() {
               />
             </div>
 
-            <div className="flex flex-col gap-5 px-4 pt-6">
+            <div className="profile-edit-fields flex flex-col gap-5 px-4 pt-6">
               <h2 className="text-center font-onest text-xl font-extrabold tracking-tight text-white">
                 Edit Profile
               </h2>
@@ -545,7 +545,7 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div className="mt-2 flex flex-col gap-3">
+              <div className="profile-edit-actions mt-2 flex flex-col gap-3">
                 <button
                   onClick={handleSave}
                   disabled={!draft.username.trim() || saving || uploading !== null}
@@ -566,11 +566,12 @@ export default function ProfilePage() {
           </div>
         ) : (
           /* ---------- РЕЖИМ ПЕРЕГЛЯДУ ---------- */
-          <div>
-            <Banner url={profile.bannerUrl} />
+          <div className="profile-view">
+            <div className="profile-banner"><Banner url={profile.bannerUrl} /></div>
 
-            <div className="px-4">
-              <div className="relative mx-auto -mt-12 h-24 w-24">
+            <div className="profile-details">
+              <div className="profile-identity">
+                <div className="profile-avatar-wrap relative h-24 w-24">
                 <AvatarCircle url={profile.avatarUrl} name={profile.username} />
                 <button
                   onClick={startEditing}
@@ -579,18 +580,18 @@ export default function ProfilePage() {
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
-              </div>
-
-              <div className="mt-3 text-center">
+                </div>
+                <div className="profile-name mt-3 text-center">
                 <h2 className="font-onest text-xl font-extrabold tracking-tight text-white">
                   {profile.username || 'Player'}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
                   {profile.handle ? `@${profile.handle}` : 'No username yet'}
                 </p>
+                </div>
               </div>
 
-              <div className="mt-5 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+              <div className="profile-info-card mt-5 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                 <InfoRow
                   Icon={Info}
                   color="text-zinc-400"
@@ -626,7 +627,7 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="profile-actions mt-4 grid grid-cols-3 gap-2">
                 <button
                   onClick={startEditing}
                   className="flex flex-col items-center gap-1 rounded-xl bg-green-500 py-3 font-inter text-xs font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400"
