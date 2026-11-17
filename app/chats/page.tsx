@@ -287,6 +287,8 @@ export default function ChatsPage() {
 
   return (
     <PageShell>
+      <div className="desktop-chats-layout">
+      <section className="desktop-chats-list">
       <h2 className="mb-4 font-onest text-2xl font-extrabold tracking-tight text-white">
         Chats
       </h2>
@@ -388,6 +390,13 @@ export default function ChatsPage() {
           })}
         </ul>
       )}
+      </section>
+      <section className="desktop-chat-welcome">
+        <div className="desktop-chat-welcome__mark"><MessageCircle className="h-9 w-9" /></div>
+        <h3>Select a conversation</h3>
+        <p>Choose a chat from the list or search for a player to start talking.</p>
+      </section>
+      </div>
     </PageShell>
   );
       }
