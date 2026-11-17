@@ -1,12 +1,24 @@
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, UserPlus, Users, X } from 'lucide-react';
+import {
+  Search,
+  SlidersHorizontal,
+  UserPlus,
+  Users,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import PlayerCard, { Player } from '@/components/PlayerCard';
 import PageShell from '@/components/PageShell';
 import FullScreenLoader from '@/components/FullScreenLoader';
+import SetRoleModal from '@/components/SetRoleModal';
 
 type ProfileRow = {
   id: string;
@@ -22,25 +34,43 @@ const gameKey = (g?: string | null) => (g ?? '').trim().toLowerCase();
 
 export default function Home() {
   const { user, checking } = useRequireAuth();
+
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [gameFilter, setGameFilter] = useState<string | null>(null); // gameKey вибраної гри
+  const [gameFilter, setGameFilter] = useState<string | null>(null);
 
-  // Завантажуємо лише тих, у кого встановлено статус (роль)
+  // Set Role Modal
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [savingGame, setSavingGame] = useState(false);
+
+  // Повідомлення
+  const [toast, setToast] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+
+  // Завантаження гравців
   useEffect(() => {
     if (!user) return;
 
+    let active = true;
+
     const loadPlayers = async () => {
+      setLoading(true);
+      setFailed(false);
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .neq('id', user.id)
         .not('status', 'is', null)
         .neq('status', '');
+
+      if (!active) return;
 
       if (error) {
         console.error('Supabase error:', error.message);
@@ -59,34 +89,95 @@ export default function Home() {
             }))
         );
       }
+
       setLoading(false);
     };
+
     loadPlayers();
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
-  // Унікальні ігри із завантажених гравців (для фільтра) з кількістю гравців
+  // Збереження вибраної гри
+  const handleSelectGame = async (gameName: string) => {
+    if (!user || savingGame) return;
+
+    setSavingGame(true);
+    setToast(null);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        game: gameName,
+      })
+      .eq('id', user.id);
+
+    setSavingGame(false);
+
+    if (error) {
+      console.error('Game update error:', error.message);
+
+      setToast({
+        type: 'error',
+        text: 'Could not save your game. Please try again.',
+      });
+
+      return;
+    }
+
+    setShowRoleModal(false);
+
+    setToast({
+      type: 'success',
+      text: `Game successfully set to ${gameName}!`,
+    });
+  };
+
+  // Унікальні ігри із завантажених гравців (для фільтра)
   const games = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
+
     players.forEach((p) => {
       const key = gameKey(p.game);
+
       if (!key) return;
+
       const cur = map.get(key);
-      if (cur) cur.count += 1;
-      else map.set(key, { label: p.game as string, count: 1 });
+
+      if (cur) {
+        cur.count += 1;
+      } else {
+        map.set(key, {
+          label: p.game as string,
+          count: 1,
+        });
+      }
     });
+
     return Array.from(map.entries())
-      .map(([key, v]) => ({ key, ...v }))
+      .map(([key, v]) => ({
+        key,
+        ...v,
+      }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [players]);
 
-  const activeGameLabel = games.find((g) => g.key === gameFilter)?.label ?? null;
+  const activeGameLabel =
+    games.find((g) => g.key === gameFilter)?.label ?? null;
 
-  // Локальний пошук + фільтр за грою по вже завантаженому списку
+  // Локальний пошук + фільтр за грою
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/^@/, '');
+
     return players.filter((p) => {
-      if (gameFilter && gameKey(p.game) !== gameFilter) return false;
+      if (gameFilter && gameKey(p.game) !== gameFilter) {
+        return false;
+      }
+
       if (!q) return true;
+
       return (
         p.nickname.toLowerCase().includes(q) ||
         (p.handle ?? '').toLowerCase().includes(q) ||
@@ -97,12 +188,25 @@ export default function Home() {
 
   if (checking) return <FullScreenLoader />;
 
-  const hasActiveSearch = query.trim() !== '' || gameFilter !== null;
+  const hasActiveSearch =
+    query.trim() !== '' || gameFilter !== null;
 
   return (
     <PageShell>
-      <button className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-3.5 font-inter font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400">
-        <UserPlus className="h-5 w-5" />
+      {/* Set a role button */}
+      <button
+        onClick={() => {
+          setToast(null);
+          setShowRoleModal(true);
+        }}
+        disabled={savingGame}
+        className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-3.5 font-inter font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400 disabled:opacity-50"
+      >
+        {savingGame ? (
+          <Loader2 className="h-5 w-5 animate-spin" />
+        ) : (
+          <UserPlus className="h-5 w-5" />
+        )}
         Set a role
       </button>
 
@@ -110,6 +214,7 @@ export default function Home() {
       <div className="mb-3 flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
+
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -117,6 +222,7 @@ export default function Home() {
             className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-3 pl-10 pr-3 font-inter font-medium text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-green-500"
           />
         </div>
+
         <button
           onClick={() => setShowFilters((v) => !v)}
           aria-label="Filters"
@@ -128,6 +234,7 @@ export default function Home() {
           }`}
         >
           <SlidersHorizontal className="h-5 w-5" />
+
           {gameFilter && (
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500" />
           )}
@@ -138,7 +245,10 @@ export default function Home() {
       {showFilters && (
         <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <p className="font-inter text-sm font-bold text-white">Game</p>
+            <p className="font-inter text-sm font-bold text-white">
+              Game
+            </p>
+
             {gameFilter && (
               <button
                 onClick={() => setGameFilter(null)}
@@ -165,6 +275,7 @@ export default function Home() {
               >
                 All games
               </button>
+
               {games.map((g) => (
                 <button
                   key={g.key}
@@ -176,7 +287,14 @@ export default function Home() {
                   }`}
                 >
                   {g.label}
-                  <span className={gameFilter === g.key ? 'ml-1.5 text-black/60' : 'ml-1.5 text-zinc-500'}>
+
+                  <span
+                    className={
+                      gameFilter === g.key
+                        ? 'ml-1.5 text-black/60'
+                        : 'ml-1.5 text-zinc-500'
+                    }
+                  >
                     {g.count}
                   </span>
                 </button>
@@ -199,9 +317,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* Список */}
+      {/* Список гравців */}
       {loading ? (
-        <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
+        <p className="py-16 text-center font-inter font-medium text-zinc-500">
+          Loading...
+        </p>
       ) : failed ? (
         <p className="py-16 text-center font-inter font-medium text-zinc-500">
           Couldn&apos;t load players. Try again later.
@@ -211,6 +331,7 @@ export default function Home() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900">
             <Users className="h-8 w-8 text-zinc-500" />
           </div>
+
           <p className="font-inter font-medium text-zinc-400">
             {hasActiveSearch && players.length > 0
               ? 'No players found.'
@@ -220,10 +341,40 @@ export default function Home() {
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map((player) => (
-            <PlayerCard key={player.id} player={player} />
+            <PlayerCard
+              key={player.id}
+              player={player}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Set Role Modal */}
+      <SetRoleModal
+        open={showRoleModal}
+        user={user}
+        onClose={() => setShowRoleModal(false)}
+        onSelectGame={handleSelectGame}
+      />
+
+      {/* Toast notifications */}
+      {toast && (
+        <div
+          className={`fixed bottom-24 left-1/2 z-[110] flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-xl border bg-zinc-900 px-4 py-3 font-inter text-sm font-bold shadow-xl ${
+            toast.type === 'success'
+              ? 'border-green-500/30 text-green-400'
+              : 'border-red-500/30 text-red-400'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+          ) : (
+            <AlertCircle className="h-5 w-5 shrink-0" />
+          )}
+
+          {toast.text}
         </div>
       )}
     </PageShell>
   );
-    }
+}
