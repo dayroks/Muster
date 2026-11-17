@@ -3,9 +3,9 @@ import BottomNav from './BottomNav';
 
 export default function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="app-shell">
       <Header />
-      <main className="mx-auto max-w-md px-4 pb-28 pt-6">{children}</main>
+      <main className="page-content">{children}</main>
       <BottomNav />
     </div>
   );
