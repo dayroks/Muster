@@ -17,7 +17,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import PlayerCard, { Player } from '@/components/PlayerCard';
 import PageShell from '@/components/PageShell';
 import FullScreenLoader from '@/components/FullScreenLoader';
-import SetRoleModal from '@/components/SetRoleModal';
+import SetRoleModal, { type RoleOptions } from '@/components/SetRoleModal';
 
 type ProfileRow = {
   id: string;
@@ -26,6 +26,7 @@ type ProfileRow = {
   avatar_url?: string | null;
   game?: string | null;
   status?: string | null;
+  play_style?: string | null;
   is_verified?: boolean | null;
 };
 
@@ -61,7 +62,7 @@ export default function Home() {
     // ВИПРАВЛЕНО: Беремо тільки тих, у кого поле game не пусте
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, handle, avatar_url, game, status, is_verified')
+      .select('id, username, handle, avatar_url, game, status, play_style, is_verified')
       .not('game', 'is', null)
       .neq('game', '');
 
@@ -92,6 +93,7 @@ export default function Home() {
         avatarUrl: profile.avatar_url ?? '',
         game: profile.game?.trim() ?? '',
         status: profile.status ?? '',
+        playStyle: profile.play_style ?? '',
         is_verified: profile.is_verified === true,
       }))
     );
@@ -107,7 +109,10 @@ export default function Home() {
   }, [user?.id, loadPlayers]);
 
   // Збереження вибраної гри
-  const handleSelectGame = async (gameName: string): Promise<boolean> => {
+  const handleSelectGame = async (
+    gameName: string,
+    options: RoleOptions
+  ): Promise<boolean> => {
     if (!user?.id || savingGame || !gameName.trim()) {
       return false;
     }
@@ -119,7 +124,8 @@ export default function Home() {
       .from('profiles')
       .update({
         game: gameName.trim(),
-        status: 'Looking for game',
+        status: options.afk ? 'AFK' : 'Looking for game',
+        play_style: options.playStyle,
       })
       .eq('id', user.id)
       .select('id, game, status')
@@ -154,9 +160,39 @@ export default function Home() {
 
     setToast({
       type: 'success',
-      text: `You are now looking for a game in ${gameName}!`,
+      text: options.afk
+        ? `Role saved: ${gameName} (AFK)`
+        : `You are now looking for a game in ${gameName}!`,
     });
 
+    return true;
+  };
+
+  // Скасування ролі
+  const handleClearRole = async (): Promise<boolean> => {
+    if (!user?.id || savingGame) return false;
+
+    setSavingGame(true);
+    setToast(null);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ game: null, status: null, play_style: null })
+      .eq('id', user.id)
+      .select('id')
+      .maybeSingle();
+
+    setSavingGame(false);
+
+    if (error || !data) {
+      setToast({
+        type: 'error',
+        text: error ? `Could not cancel role: ${error.message}` : 'Could not cancel role.',
+      });
+      return false;
+    }
+
+    setToast({ type: 'success', text: 'Role cancelled' });
     return true;
   };
 
@@ -377,6 +413,7 @@ export default function Home() {
         user={user}
         onClose={() => setShowRoleModal(false)}
         onSelectGame={handleSelectGame}
+        onClearRole={handleClearRole}
         onSaved={loadPlayers}
       />
 
@@ -400,4 +437,4 @@ export default function Home() {
       )}
     </PageShell>
   );
-      }
+                                  }
