@@ -1,5 +1,6 @@
 'use client';
 
+import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -36,7 +37,7 @@ function ChatInner() {
   const { user, checking } = useRequireAuth();
   const myId = user?.id ?? '';
 
-  const [peerInfo, setPeerInfo] = useState<{ username: string; handle: string | null; avatar_url: string | null; is_verified: boolean } | null>(null);
+  const [peerInfo, setPeerInfo] = useState<{ username: string; handle: string | null; avatar_url: string | null; is_verified: boolean; is_sticker_creator: boolean } | null>(null);
   const [chatPeers, setChatPeers] = useState<Array<{ id: string; username: string; avatar_url: string | null; lastText: string }>>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +80,7 @@ function ChatInner() {
     if (!user || !UUID_RE.test(peerId)) return;
     supabase
       .from('profiles')
-      .select('username, handle, avatar_url, is_verified')
+      .select('username, handle, avatar_url, is_verified, is_sticker_creator')
       .eq('id', peerId)
       .maybeSingle()
       .then(({ data }) =>
@@ -90,6 +91,7 @@ function ChatInner() {
                 handle: data.handle ?? null,
                 avatar_url: data.avatar_url ?? null,
                 is_verified: data.is_verified === true,
+                is_sticker_creator: data.is_sticker_creator === true,
               }
             : null,
         ),
@@ -222,6 +224,7 @@ function ChatInner() {
             </div>
             <div className="min-w-0">
               <h1 className="flex min-w-0 items-center gap-0.5 font-onest text-lg font-extrabold leading-tight text-white">
+                {peerInfo?.is_sticker_creator && <StickerCreatorBadge className="h-5 w-5" />}
                 <span className="truncate">{peerInfo?.username || '...'}</span>
                 {peerInfo?.is_verified && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -342,4 +345,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-          }
+        }
