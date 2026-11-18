@@ -91,7 +91,7 @@ function ViewInner() {
         </div>
       </header>
 
-      <main className="other-profile-main mx-auto max-w-md pb-10">
+      <main className="page-enter other-profile-main mx-auto max-w-md pb-10">
         {loading ? (
           <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
         ) : !profile ? (
@@ -117,7 +117,7 @@ function ViewInner() {
                       src="/galka.png"
                       alt="Verified"
                       title="Verified"
-                      className="h-7 w-7 shrink-0 object-contain"
+                      className="h-6 w-6 shrink-0 object-contain"
                     />
                   )}
                 </h2>
@@ -186,4 +186,4 @@ export default function ViewProfilePage() {
       <ViewInner />
     </Suspense>
   );
-}
+                    }
