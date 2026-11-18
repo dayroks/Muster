@@ -4,8 +4,8 @@ import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
 import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Send, Search, MessageCircle } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Send, Search, MessageCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import BottomNav from '@/components/BottomNav';
@@ -45,6 +45,65 @@ function ChatInner() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+
+  const router = useRouter();
+  const [mentionToast, setMentionToast] = useState('');
+  const mentionToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showMentionToast = (msg: string) => {
+    setMentionToast(msg);
+    if (mentionToastTimer.current) clearTimeout(mentionToastTimer.current);
+    mentionToastTimer.current = setTimeout(() => setMentionToast(''), 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (mentionToastTimer.current) clearTimeout(mentionToastTimer.current);
+    };
+  }, []);
+
+  // Клік по @юзернейму: шукаємо профіль, якщо є — відкриваємо, якщо ні — повідомлення
+  const openMention = async (handle: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('handle', handle.toLowerCase())
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      showMentionToast('No profile found');
+      return;
+    }
+    router.push(`/profile/view?id=${data.id}`);
+  };
+
+  // Розбиває текст повідомлення і робить із @юзернеймів синні клікабельні посилання
+  const renderContent = (content: string, mine: boolean) => {
+    const parts: React.ReactNode[] = [];
+    const re = /(^|[^A-Za-z0-9_])@([A-Za-z0-9_]+)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      const start = m.index + m[1].length; // позиція символу @
+      if (start > last) parts.push(content.slice(last, start));
+      const handle = m[2];
+      parts.push(
+        <button
+          key={`${start}-${handle}`}
+          type="button"
+          onClick={() => openMention(handle)}
+          className={`cursor-pointer font-bold underline-offset-2 hover:underline ${
+            mine ? 'text-blue-800' : 'text-sky-400'
+          }`}
+        >
+          @{handle}
+        </button>
+      );
+      last = start + 1 + handle.length;
+    }
+    if (last < content.length) parts.push(content.slice(last));
+    return parts;
+  };
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -290,7 +349,7 @@ function ChatInner() {
                     }`}
                   >
                     <p className="whitespace-pre-wrap break-words font-inter text-[15px] font-medium">
-                      {m.content}
+                      {renderContent(m.content, mine)}
                     </p>
                     <p
                       className={`mt-0.5 text-right font-inter text-[10px] font-medium ${
@@ -343,6 +402,16 @@ function ChatInner() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {mentionToast && (
+        <div
+          className="toast-in fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-red-500/30 bg-zinc-900 px-4 py-3 font-inter font-bold text-red-400"
+          style={{ bottom: 'calc(15.5rem + env(safe-area-inset-bottom))' }}
+        >
+          <AlertCircle className="h-5 w-5" />
+          {mentionToast}
         </div>
       )}
 
