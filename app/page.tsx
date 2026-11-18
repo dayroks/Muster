@@ -102,39 +102,57 @@ export default function Home() {
 
   // Збереження вибраної гри
   const handleSelectGame = async (gameName: string) => {
-    if (!user || savingGame) return;
+  if (!user?.id || savingGame || !gameName.trim()) return;
 
-    setSavingGame(true);
-    setToast(null);
+  setSavingGame(true);
+  setToast(null);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        game: gameName,
-      })
-      .eq('id', user.id);
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      game: gameName.trim(),
+      status: 'Looking for game',
+    })
+    .eq('id', user.id)
+    .select('id, game, status')
+    .maybeSingle();
 
-    setSavingGame(false);
+  setSavingGame(false);
 
-    if (error) {
-      console.error('Game update error:', error.message);
-
-      setToast({
-        type: 'error',
-        text: 'Could not save your game. Please try again.',
-      });
-
-      return;
-    }
-
-    setShowRoleModal(false);
+  if (error) {
+    console.error('Supabase game save error:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
 
     setToast({
-      type: 'success',
-      text: `Game successfully set to ${gameName}!`,
+      type: 'error',
+      text: `Save failed: ${error.message}`,
     });
-  };
 
+    return;
+  }
+
+  if (!data) {
+    console.error('Profile was not updated. Check profile ID and RLS policies.');
+
+    setToast({
+      type: 'error',
+      text: 'Profile not found or update permission denied.',
+    });
+
+    return;
+  }
+
+  setShowRoleModal(false);
+
+  setToast({
+    type: 'success',
+    text: `You are now looking for a game in ${gameName}!`,
+  });
+};
   // Унікальні ігри із завантажених гравців (для фільтра)
   const games = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
