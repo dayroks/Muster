@@ -10,6 +10,7 @@ export type Player = {
   avatarUrl?: string;
   game?: string;
   status?: string;
+  is_verified?: boolean;
 };
 
 export default function PlayerCard({ player }: { player: Player }) {
@@ -43,7 +44,18 @@ export default function PlayerCard({ player }: { player: Player }) {
 
       {/* Текст пропускає кліки до посилання на чат */}
       <div className="pointer-events-none relative min-w-0 flex-1">
-        <p className="truncate font-inter font-bold text-white">{name}</p>
+        <p className="flex min-w-0 items-center gap-1.5 truncate font-inter font-bold text-white">
+          <span className="truncate">{name}</span>
+          {player.is_verified === true && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/galka.png"
+              alt="Verified"
+              title="Verified"
+              className="h-5 w-5 shrink-0 object-contain"
+            />
+          )}
+        </p>
         <p className="truncate font-inter text-sm font-medium text-zinc-400">
           {player.handle ? `@${player.handle}` : 'No username yet'}
         </p>
