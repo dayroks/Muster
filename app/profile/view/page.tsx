@@ -1,7 +1,7 @@
 'use client';
 
+import { MiniAppCreatorBadge, MiniAppCreatorNote } from '@/components/MiniAppBadges';
 import { StickerCreatorBadge, StickerCreatorNote } from '@/components/StickerCreatorBadge';
-import { MiniAppCreatorBadge, MiniAppCreatorNote } from '@/components/MiniAppCreatorBadge';
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -116,6 +116,7 @@ function ViewInner() {
 
               <div className="mt-3 text-center">
                 <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
+                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
                   {profile.is_sticker_creator === true && <StickerCreatorBadge className="h-6 w-6" />}
                   {profile.username || 'Player'}
                   {profile.is_verified === true && (
@@ -127,7 +128,6 @@ function ViewInner() {
                       className="h-6 w-6 shrink-0 object-contain"
                     />
                   )}
-                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
                 </h2>
                 {profile.handle && (
                   <p className="font-inter text-sm font-medium text-zinc-500">
@@ -143,7 +143,6 @@ function ViewInner() {
                   color="text-zinc-400"
                   label="about me"
                   value={profile.bio || 'Nothing here yet'}
-                  renderMentions
                 />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
@@ -197,4 +196,4 @@ export default function ViewProfilePage() {
       <ViewInner />
     </Suspense>
   );
-}
+                }
