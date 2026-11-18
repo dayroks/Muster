@@ -117,7 +117,7 @@ function ViewInner() {
                       src="/galka.png"
                       alt="Verified"
                       title="Verified"
-                      className="h-6 w-6 shrink-0 object-contain"
+                      className="h-7 w-7 shrink-0 object-contain"
                     />
                   )}
                 </h2>
