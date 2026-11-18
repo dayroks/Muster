@@ -1,7 +1,7 @@
 'use client';
 
-import { MiniAppCreatorBadge, MiniAppCreatorNote } from '@/components/MiniAppBadges';
 import { StickerCreatorBadge, StickerCreatorNote } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge, MiniAppCreatorNote } from '@/components/MiniAppCreatorBadge';
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import Link from 'next/link';
@@ -29,6 +29,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import FullScreenLoader from '@/components/FullScreenLoader';
+import MentionText from '@/components/MentionText';
 
 const BUCKET = 'avatars';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -113,18 +114,20 @@ function InfoRow({
   label,
   value,
   href,
+  renderMentions = false,
 }: {
   Icon: ComponentType<{ className?: string }>;
   color: string;
   label: string;
   value: string;
   href?: string;
+  renderMentions?: boolean;
 }) {
   const content = (
     <>
       <Icon className={`h-5 w-5 shrink-0 ${color}`} />
       <div className="min-w-0 flex-1">
-        <p className="break-words font-inter text-sm font-medium text-white">{value}</p>
+        <p className="break-words font-inter text-sm font-medium text-white">{renderMentions ? <MentionText text={value} /> : value}</p>
         <p className="font-inter text-xs font-bold text-zinc-500">{label}</p>
       </div>
     </>
@@ -575,7 +578,6 @@ export default function ProfilePage() {
 
               <div className="mt-3 text-center">
                 <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
-                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
                   {profile.is_sticker_creator === true && <StickerCreatorBadge className="h-6 w-6" />}
                   {profile.username || 'Player'}
                   {profile.is_verified === true && (
@@ -587,6 +589,7 @@ export default function ProfilePage() {
                       className="h-6 w-6 shrink-0 object-contain"
                     />
                   )}
+                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
                   {profile.handle ? `@${profile.handle}` : 'No username yet'}
@@ -599,6 +602,7 @@ export default function ProfilePage() {
                   color="text-zinc-400"
                   label="about me"
                   value={profile.bio || 'Nothing here yet'}
+                  renderMentions
                 />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
@@ -679,4 +683,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-}
+                                                  }
