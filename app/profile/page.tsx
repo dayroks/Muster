@@ -575,12 +575,11 @@ export default function ProfilePage() {
                   {profile.username || 'Player'}
                   {profile.is_verified === true && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src="/galka.png"
-                      alt="Verified"
-                      title="Verified"
-                      className="h-5 w-5 shrink-0 object-contain"
-                    />
+                  <img
+                    src="/galgalka.png"
+                    alt="Verified"
+                    className="h-7 w-7 object-contain"
+                  />
                   )}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
