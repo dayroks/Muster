@@ -571,15 +571,16 @@ export default function ProfilePage() {
               </div>
 
               <div className="mt-3 text-center">
-                <h2 className="flex items-center justify-center gap-1.5 font-onest text-xl font-extrabold tracking-tight text-white">
+                <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
                   {profile.username || 'Player'}
                   {profile.is_verified === true && (
                     // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src="/galka.png"
-                    alt="Verified"
-                    className="h-7 w-7 object-contain"
-                  />
+                    <img
+                      src="/galka.png"
+                      alt="Verified"
+                      title="Verified"
+                      className="h-6 w-6 shrink-0 object-contain"
+                    />
                   )}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
@@ -671,4 +672,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-            }
+}
