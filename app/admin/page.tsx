@@ -2,6 +2,7 @@
 'use client';
 
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -43,6 +44,7 @@ type AdminProfile = {
   avatar_url: string | null;
   is_verified: boolean;
   is_sticker_creator: boolean;
+  is_mini_app_creator: boolean;
 };
 
 type Tab = 'requests' | 'games' | 'users';
@@ -124,7 +126,7 @@ export default function AdminPage() {
 
       supabase
         .from('profiles')
-        .select('id, username, handle, avatar_url, is_verified, is_sticker_creator')
+        .select('id, username, handle, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator')
         .order('username', { ascending: true }),
     ]);
 
@@ -343,6 +345,37 @@ export default function AdminPage() {
       );
       showMessage(
         nextValue ? 'Sticker Creator badge granted.' : 'Sticker Creator badge removed.',
+        'success'
+      );
+    }
+
+    setProcessingId(null);
+  };
+
+  const handleToggleMiniAppCreator = async (profile: AdminProfile) => {
+    const nextValue = !profile.is_mini_app_creator;
+    setProcessingId(`mac-${profile.id}`);
+    setMessage(null);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ is_mini_app_creator: nextValue })
+      .eq('id', profile.id)
+      .select('id');
+
+    if (error) {
+      console.error('Mini app creator update error:', error);
+      showMessage(error.message || 'Could not update Mini App Creator status.', 'error');
+    } else if (!data || data.length === 0) {
+      showMessage('Update blocked (check RLS policy).', 'error');
+    } else {
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === profile.id ? { ...item, is_mini_app_creator: nextValue } : item
+        )
+      );
+      showMessage(
+        nextValue ? 'Mini App Creator badge granted.' : 'Mini App Creator badge removed.',
         'success'
       );
     }
@@ -687,6 +720,7 @@ export default function AdminPage() {
                               className="h-4 w-4 shrink-0 object-contain"
                             />
                           )}
+                          {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-4 w-4" />}
                         </div>
                         <p className="truncate font-inter text-xs text-zinc-500">
                           {profile.handle ? `@${profile.handle}` : 'No username'}
@@ -730,6 +764,24 @@ export default function AdminPage() {
                         )}
                         {profile.is_sticker_creator ? 'Remove Creator' : 'Sticker Creator'}
                       </button>
+
+                      <button
+                        onClick={() => handleToggleMiniAppCreator(profile)}
+                        disabled={processingId === `mac-${profile.id}`}
+                        className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-inter text-xs font-bold disabled:opacity-50 ${
+                          profile.is_mini_app_creator
+                            ? 'border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                            : 'bg-sky-500 text-white hover:bg-sky-400'
+                        }`}
+                      >
+                        {processingId === `mac-${profile.id}` ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src="/mini-app-creator.png" alt="" className="h-4 w-4 object-contain" />
+                        )}
+                        {profile.is_mini_app_creator ? 'Remove Mini App' : 'Mini App Creator'}
+                      </button>
                       </div>
                     </div>
                   ))}
@@ -741,4 +793,4 @@ export default function AdminPage() {
       )}
     </PageShell>
   );
-    }
+                    }
