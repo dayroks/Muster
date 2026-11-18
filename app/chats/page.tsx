@@ -1,6 +1,7 @@
 'use client';
 
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
@@ -24,11 +25,12 @@ type Peer = {
   avatar_url: string | null;
   is_verified?: boolean | null;
   is_sticker_creator?: boolean | null;
+  is_mini_app_creator?: boolean | null;
 };
 
 type SearchUser = Peer & { handle: string | null };
 
-const SEARCH_COLUMNS = 'id, username, handle, avatar_url, is_verified, is_sticker_creator';
+const SEARCH_COLUMNS = 'id, username, handle, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator';
 
 // Час у стилі Telegram: сьогодні HH:MM, вчора, день тижня, інакше дата
 function formatListTime(iso: string) {
@@ -54,6 +56,7 @@ function UserRow({
   time,
   verified,
   stickerCreator,
+  miniAppCreator,
 }: {
   href: string;
   name: string;
@@ -62,6 +65,7 @@ function UserRow({
   time?: string;
   verified?: boolean;
   stickerCreator?: boolean;
+  miniAppCreator?: boolean;
 }) {
   return (
     <li className="border-b border-zinc-800/50">
@@ -93,6 +97,7 @@ function UserRow({
                 className="h-5 w-5 shrink-0 object-contain"
               />
             )}
+            {miniAppCreator === true && <MiniAppCreatorBadge className="h-5 w-5" />}
           </p>
           <p className="truncate font-inter text-sm font-medium text-zinc-500">{subtitle}</p>
         </div>
@@ -136,7 +141,7 @@ export default function ChatsPage() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url, is_verified, is_sticker_creator')
+        .select('id, username, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator')
         .in('id', missing);
 
       if (error) {
@@ -360,6 +365,7 @@ export default function ChatsPage() {
                 subtitle={u.handle ? `@${u.handle}` : 'No username yet'}
                 verified={u.is_verified === true}
                 stickerCreator={u.is_sticker_creator === true}
+                miniAppCreator={u.is_mini_app_creator === true}
               />
             ))}
           </ul>
@@ -401,6 +407,7 @@ export default function ChatsPage() {
                 avatarUrl={peer?.avatar_url}
                 verified={peer?.is_verified === true}
                 stickerCreator={peer?.is_sticker_creator === true}
+                miniAppCreator={peer?.is_mini_app_creator === true}
                 subtitle={
                   <>
                     {mine && <span className="text-zinc-400">You: </span>}
