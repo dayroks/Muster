@@ -1,7 +1,8 @@
 'use client';
 
+import MiniAppsPanel from '@/components/MiniApps';
+import { MiniAppCreatorBadge } from '@/components/MiniAppBadges';
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
-import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
@@ -10,7 +11,6 @@ import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import PageShell from '@/components/PageShell';
 import FullScreenLoader from '@/components/FullScreenLoader';
-import MentionText from '@/components/MentionText';
 
 type Message = {
   id: string | number;
@@ -87,6 +87,7 @@ function UserRow({
 
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-0.5 font-inter font-bold text-white">
+            {miniAppCreator === true && <MiniAppCreatorBadge className="h-5 w-5" />}
             {stickerCreator === true && <StickerCreatorBadge className="h-5 w-5" />}
             <span className="truncate">{name}</span>
             {verified === true && (
@@ -98,7 +99,6 @@ function UserRow({
                 className="h-5 w-5 shrink-0 object-contain"
               />
             )}
-            {miniAppCreator === true && <MiniAppCreatorBadge className="h-5 w-5" />}
           </p>
           <p className="truncate font-inter text-sm font-medium text-zinc-500">{subtitle}</p>
         </div>
@@ -124,6 +124,7 @@ export default function ChatsPage() {
   const profilesRef = useRef<Record<string, Peer>>({});
 
   /* ---------- Глобальний пошук ---------- */
+  const [tab, setTab] = useState<'chats' | 'apps'>('chats');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchUser[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -314,10 +315,31 @@ export default function ChatsPage() {
     <PageShell>
       <div className="desktop-chats-layout">
       <section className="desktop-chats-list">
-      <h2 className="mb-4 font-onest text-2xl font-extrabold tracking-tight text-white">
-        Chats
-      </h2>
+      {/* Вкладки: Chats / Mini Apps */}
+      <div className="mb-4 flex items-end gap-6">
+        {([
+          ['chats', 'Chats'],
+          ['apps', 'Mini Apps'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setTab(value)}
+            className={`relative pb-1.5 font-onest text-2xl font-extrabold tracking-tight ${
+              tab === value ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'
+            }`}
+          >
+            {label}
+            {tab === value && (
+              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-green-500" />
+            )}
+          </button>
+        ))}
+      </div>
 
+      {tab === 'apps' && user ? (
+        <MiniAppsPanel user={user} />
+      ) : (
+      <>
       {/* Поле пошуку */}
       <div className="relative mb-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
@@ -412,7 +434,7 @@ export default function ChatsPage() {
                 subtitle={
                   <>
                     {mine && <span className="text-zinc-400">You: </span>}
-                    <MentionText text={msg.content} />
+                    {msg.content}
                   </>
                 }
                 time={formatListTime(msg.created_at)}
@@ -420,6 +442,8 @@ export default function ChatsPage() {
             );
           })}
         </ul>
+      )}
+      </>
       )}
       </section>
       <section className="desktop-chat-welcome">
@@ -430,4 +454,4 @@ export default function ChatsPage() {
       </div>
     </PageShell>
   );
-    }
+                                   }
