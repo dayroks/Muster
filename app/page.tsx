@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Users,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
