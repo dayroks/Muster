@@ -576,7 +576,7 @@ export default function ProfilePage() {
                   {profile.is_verified === true && (
                     // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src="/galgalka.png"
+                    src="/galka.png"
                     alt="Verified"
                     className="h-7 w-7 object-contain"
                   />
