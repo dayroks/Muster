@@ -1,6 +1,7 @@
 'use client';
 
 import { StickerCreatorBadge, StickerCreatorNote } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge, MiniAppCreatorNote } from '@/components/MiniAppCreatorBadge';
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import Link from 'next/link';
@@ -44,6 +45,7 @@ type ProfileData = {
   bannerUrl: string;
   is_verified: boolean;
   is_sticker_creator: boolean;
+  is_mini_app_creator: boolean;
 };
 
 const EMPTY: ProfileData = {
@@ -57,6 +59,7 @@ const EMPTY: ProfileData = {
   bannerUrl: '',
   is_verified: false,
   is_sticker_creator: false,
+  is_mini_app_creator: false,
 };
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
@@ -161,7 +164,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified, is_sticker_creator')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified, is_sticker_creator, is_mini_app_creator')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -180,6 +183,7 @@ export default function ProfilePage() {
             bannerUrl: data.banner_url ?? '',
             is_verified: data.is_verified === true,
             is_sticker_creator: data.is_sticker_creator === true,
+            is_mini_app_creator: data.is_mini_app_creator === true,
           });
         }
         setLoadingProfile(false);
@@ -246,6 +250,7 @@ export default function ProfilePage() {
       bannerUrl: draft.bannerUrl,
       is_verified: profile.is_verified,
       is_sticker_creator: profile.is_sticker_creator,
+      is_mini_app_creator: profile.is_mini_app_creator,
     };
     if (!next.username) return;
 
@@ -581,6 +586,7 @@ export default function ProfilePage() {
                       className="h-6 w-6 shrink-0 object-contain"
                     />
                   )}
+                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
                   {profile.handle ? `@${profile.handle}` : 'No username yet'}
@@ -595,6 +601,7 @@ export default function ProfilePage() {
                   value={profile.bio || 'Nothing here yet'}
                 />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
+                {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
                 {profile.telegram && (
                   <InfoRow
                     Icon={Send}
