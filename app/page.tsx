@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -29,6 +28,7 @@ type ProfileRow = {
   status?: string | null;
   play_style?: string | null;
   is_verified?: boolean | null;
+  is_sticker_creator?: boolean | null;
 };
 
 const gameKey = (game?: string | null) =>
@@ -63,7 +63,7 @@ export default function Home() {
     // ВИПРАВЛЕНО: Беремо тільки тих, у кого поле game не пусте
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, handle, avatar_url, game, status, play_style, is_verified')
+      .select('id, username, handle, avatar_url, game, status, play_style, is_verified, is_sticker_creator')
       .not('game', 'is', null)
       .neq('game', '');
 
@@ -96,6 +96,7 @@ export default function Home() {
         status: profile.status ?? '',
         playStyle: profile.play_style ?? '',
         is_verified: profile.is_verified === true,
+        is_sticker_creator: profile.is_sticker_creator === true,
       }))
     );
 
@@ -438,4 +439,4 @@ export default function Home() {
       )}
     </PageShell>
   );
-                                  }
+        }
