@@ -345,7 +345,7 @@ export default function ChatsPage() {
             <p className="font-inter font-medium text-zinc-400">No users found</p>
           </div>
         ) : (
-          <ul className="-mx-4">
+          <ul className="stagger -mx-4">
             {results.map((u) => (
               <UserRow
                 key={u.id}
@@ -384,7 +384,7 @@ export default function ChatsPage() {
           </Link>
         </div>
       ) : (
-        <ul className="-mx-4">
+        <ul className="stagger -mx-4">
           {items.map(({ peerId, msg, peer }) => {
             const mine = msg.sender_id === user?.id;
             return (
