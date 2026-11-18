@@ -18,7 +18,8 @@ type SetRoleModalProps = {
   open: boolean;
   user: User | null;
   onClose: () => void;
-  onSelectGame: (gameName: string) => void | Promise<void>;
+  onSelectGame: (gameName: string) => Promise<boolean>;
+  onSaved: () => Promise<void>;
 };
 
 type Game = {
@@ -31,10 +32,13 @@ export default function SetRoleModal({
   user,
   onClose,
   onSelectGame,
+  onSaved,
 }: SetRoleModalProps) {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
+
+  const [saving, setSaving] = useState(false);
   const [requestMode, setRequestMode] = useState(false);
   const [newGameName, setNewGameName] = useState('');
   const [requestLoading, setRequestLoading] = useState(false);
@@ -64,7 +68,11 @@ export default function SetRoleModal({
       if (!active) return;
 
       if (error) {
-        console.error('Games loading error:', error.message);
+        console.error('Games loading error:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+        });
 
         setMessage({
           type: 'error',
@@ -86,14 +94,38 @@ export default function SetRoleModal({
 
   if (!open) return null;
 
-  // Вибір гри
+  // Збереження гри та оновлення головної сторінки
   const handleSaveGame = async () => {
-    if (!selectedGame || !user?.id) return;
+    if (!selectedGame || !user?.id || saving) return;
 
-    await onSelectGame(selectedGame);
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const saved = await onSelectGame(selectedGame);
+
+      if (!saved) {
+        return;
+      }
+
+      // Повторно завантажуємо профілі з Supabase
+      await onSaved();
+
+      // Закриваємо модальне вікно після оновлення
+      onClose();
+    } catch (error) {
+      console.error('Save game callback error:', error);
+
+      setMessage({
+        type: 'error',
+        text: 'Something went wrong. Please try again.',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Надсилання запиту на додавання гри
+  // Надсилання запиту на додавання нової гри
   const handleRequestGame = async () => {
     const gameName = newGameName.trim();
 
@@ -116,7 +148,6 @@ export default function SetRoleModal({
         message: error.message,
         code: error.code,
         details: error.details,
-        hint: error.hint,
       });
 
       setMessage({
@@ -133,18 +164,15 @@ export default function SetRoleModal({
     });
 
     setNewGameName('');
-
-    setTimeout(() => {
-      setRequestMode(false);
-      setMessage(null);
-    }, 1800);
   };
 
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && !saving) {
+          onClose();
+        }
       }}
     >
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
@@ -154,6 +182,7 @@ export default function SetRoleModal({
             <h2 className="font-inter text-lg font-bold text-white">
               Set a role
             </h2>
+
             <p className="mt-0.5 font-inter text-sm text-zinc-500">
               Choose a game you want to play
             </p>
@@ -161,8 +190,9 @@ export default function SetRoleModal({
 
           <button
             onClick={onClose}
+            disabled={saving}
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-40"
           >
             <X className="h-5 w-5" />
           </button>
@@ -175,11 +205,14 @@ export default function SetRoleModal({
               {loading ? (
                 <div className="flex items-center justify-center gap-2 py-12 text-zinc-500">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span className="font-inter text-sm">Loading games...</span>
+                  <span className="font-inter text-sm">
+                    Loading games...
+                  </span>
                 </div>
               ) : games.length === 0 ? (
                 <div className="py-8 text-center">
                   <Gamepad2 className="mx-auto mb-3 h-9 w-9 text-zinc-600" />
+
                   <p className="font-inter text-sm text-zinc-400">
                     No games available yet.
                   </p>
@@ -190,13 +223,15 @@ export default function SetRoleModal({
                     <button
                       key={game.id}
                       onClick={() => setSelectedGame(game.name)}
-                      className={`flex items-center gap-2 rounded-xl border p-3 text-left font-inter text-sm font-bold transition-all ${
+                      disabled={saving}
+                      className={`flex items-center gap-2 rounded-xl border p-3 text-left font-inter text-sm font-bold transition-all disabled:opacity-50 ${
                         selectedGame === game.name
                           ? 'border-green-500 bg-green-500/10 text-green-400'
                           : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800'
                       }`}
                     >
                       <Gamepad2 className="h-4 w-4 shrink-0" />
+
                       <span className="truncate">{game.name}</span>
                     </button>
                   ))}
@@ -217,6 +252,7 @@ export default function SetRoleModal({
                   ) : (
                     <AlertCircle className="h-4 w-4 shrink-0" />
                   )}
+
                   {message.text}
                 </div>
               )}
@@ -225,10 +261,14 @@ export default function SetRoleModal({
               <div className="mt-5 flex flex-col gap-2">
                 <button
                   onClick={handleSaveGame}
-                  disabled={!selectedGame || loading}
+                  disabled={!selectedGame || loading || saving}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-3 font-inter font-bold text-black transition-colors hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Save game
+                  {saving && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+
+                  {saving ? 'Saving...' : 'Save game'}
                 </button>
 
                 <button
@@ -236,6 +276,7 @@ export default function SetRoleModal({
                     setRequestMode(true);
                     setMessage(null);
                   }}
+                  disabled={saving}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 py-3 font-inter text-sm font-bold text-zinc-300 transition-colors hover:border-zinc-700 hover:bg-zinc-800"
                 >
                   <Plus className="h-4 w-4" />
@@ -279,6 +320,7 @@ export default function SetRoleModal({
                     ) : (
                       <AlertCircle className="h-4 w-4 shrink-0" />
                     )}
+
                     {message.text}
                   </div>
                 )}
@@ -303,6 +345,7 @@ export default function SetRoleModal({
                     {requestLoading && (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     )}
+
                     Send request
                   </button>
                 </div>
