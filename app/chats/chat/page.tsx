@@ -164,11 +164,20 @@ function ChatInner() {
   // Автоскрол
   useEffect(() => {
     if (loading) return;
-    bottomRef.current?.scrollIntoView({
-      behavior: didInitialScroll.current ? 'smooth' : 'auto',
-      block: 'end',
-    });
+    const scrollDown = (behavior: ScrollBehavior) =>
+      bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+
+    scrollDown(didInitialScroll.current ? 'smooth' : 'auto');
     didInitialScroll.current = true;
+
+    // Довгі повідомлення дорівнюють висоті не одразу (анімація, перенесення рядків),
+    // тому після короткої паузи прокручуємо ще раз миттєво, вже до справжнього низу.
+    const t1 = setTimeout(() => scrollDown('auto'), 350);
+    const t2 = setTimeout(() => scrollDown('auto'), 700);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [messages, loading]);
 
   const handleSend = async () => {
