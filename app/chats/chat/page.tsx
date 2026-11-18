@@ -1,15 +1,16 @@
 'use client';
 
-import { MiniAppCreatorBadge } from '@/components/MiniAppBadges';
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Send, Search, MessageCircle } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Send, Search, MessageCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import BottomNav from '@/components/BottomNav';
 import FullScreenLoader from '@/components/FullScreenLoader';
+import MentionText from '@/components/MentionText';
 
 type Message = {
   id: string | number;
@@ -45,6 +46,65 @@ function ChatInner() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+
+  const router = useRouter();
+  const [mentionToast, setMentionToast] = useState('');
+  const mentionToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showMentionToast = (msg: string) => {
+    setMentionToast(msg);
+    if (mentionToastTimer.current) clearTimeout(mentionToastTimer.current);
+    mentionToastTimer.current = setTimeout(() => setMentionToast(''), 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (mentionToastTimer.current) clearTimeout(mentionToastTimer.current);
+    };
+  }, []);
+
+  // Клік по @юзернейму: шукаємо профіль, якщо є — відкриваємо, якщо ні — повідомлення
+  const openMention = async (handle: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('handle', handle.toLowerCase())
+      .maybeSingle();
+
+    if (error || !data?.id) {
+      showMentionToast('No profile found');
+      return;
+    }
+    router.push(`/profile/view?id=${data.id}`);
+  };
+
+  // Розбиває текст повідомлення і робить із @юзернеймів синні клікабельні посилання
+  const renderContent = (content: string, mine: boolean) => {
+    const parts: React.ReactNode[] = [];
+    const re = /(^|[^A-Za-z0-9_])@([A-Za-z0-9_]+)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      const start = m.index + m[1].length; // позиція символу @
+      if (start > last) parts.push(content.slice(last, start));
+      const handle = m[2];
+      parts.push(
+        <button
+          key={`${start}-${handle}`}
+          type="button"
+          onClick={() => openMention(handle)}
+          className={`cursor-pointer font-bold underline-offset-2 hover:underline ${
+            mine ? 'text-blue-800' : 'text-sky-400'
+          }`}
+        >
+          @{handle}
+        </button>
+      );
+      last = start + 1 + handle.length;
+    }
+    if (last < content.length) parts.push(content.slice(last));
+    return parts;
+  };
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -164,11 +224,20 @@ function ChatInner() {
   // Автоскрол
   useEffect(() => {
     if (loading) return;
-    bottomRef.current?.scrollIntoView({
-      behavior: didInitialScroll.current ? 'smooth' : 'auto',
-      block: 'end',
-    });
+    const scrollDown = (behavior: ScrollBehavior) =>
+      bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+
+    scrollDown(didInitialScroll.current ? 'smooth' : 'auto');
     didInitialScroll.current = true;
+
+    // Довгі повідомлення дорівнюють висоті не одразу (анімація, перенесення рядків),
+    // тому після короткої паузи прокручуємо ще раз миттєво, вже до справжнього низу.
+    const t1 = setTimeout(() => scrollDown('auto'), 350);
+    const t2 = setTimeout(() => scrollDown('auto'), 700);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [messages, loading]);
 
   const handleSend = async () => {
@@ -226,13 +295,13 @@ function ChatInner() {
             </div>
             <div className="min-w-0">
               <h1 className="flex min-w-0 items-center gap-0.5 font-onest text-lg font-extrabold leading-tight text-white">
-                {peerInfo?.is_mini_app_creator && <MiniAppCreatorBadge className="h-5 w-5" />}
                 {peerInfo?.is_sticker_creator && <StickerCreatorBadge className="h-5 w-5" />}
                 <span className="truncate">{peerInfo?.username || '...'}</span>
                 {peerInfo?.is_verified && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src="/galka.png" alt="Verified" title="Verified" className="h-5 w-5 shrink-0 object-contain" />
                 )}
+                {peerInfo?.is_mini_app_creator && <MiniAppCreatorBadge className="h-5 w-5" />}
               </h1>
               {peerInfo?.handle && (
                 <p className="truncate font-inter text-xs font-medium leading-tight text-zinc-500">
@@ -251,7 +320,7 @@ function ChatInner() {
         <div className="desktop-chat-sidebar__items">
           {chatPeers.map((peer) => <Link key={peer.id} href={`/chats/chat?id=${peer.id}`} className={`desktop-chat-peer ${peer.id === peerId ? 'is-current' : ''}`}>
             <div className="desktop-chat-peer__avatar">{peer.avatar_url ? <img src={peer.avatar_url} alt=""/> : peer.username.charAt(0).toUpperCase()}</div>
-            <div><b>{peer.username}</b><small>{peer.lastText}</small></div>
+            <div><b>{peer.username}</b><small><MentionText text={peer.lastText} /></small></div>
           </Link>)}
           {!chatPeers.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No conversations yet</p>}
         </div>
@@ -281,7 +350,7 @@ function ChatInner() {
                     }`}
                   >
                     <p className="whitespace-pre-wrap break-words font-inter text-[15px] font-medium">
-                      {m.content}
+                      {renderContent(m.content, mine)}
                     </p>
                     <p
                       className={`mt-0.5 text-right font-inter text-[10px] font-medium ${
@@ -296,7 +365,7 @@ function ChatInner() {
             })}
           </div>
         )}
-        <div ref={bottomRef} className="scroll-mb-36" />
+        <div ref={bottomRef} className="scroll-mb-60" />
       </main>
       </div>
 
@@ -337,6 +406,16 @@ function ChatInner() {
         </div>
       )}
 
+      {mentionToast && (
+        <div
+          className="toast-in fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-red-500/30 bg-zinc-900 px-4 py-3 font-inter font-bold text-red-400"
+          style={{ bottom: 'calc(15.5rem + env(safe-area-inset-bottom))' }}
+        >
+          <AlertCircle className="h-5 w-5" />
+          {mentionToast}
+        </div>
+      )}
+
       <BottomNav />
     </div>
   );
@@ -348,4 +427,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-      }
+                                          }
