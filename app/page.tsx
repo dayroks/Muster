@@ -364,7 +364,7 @@ export default function Home() {
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="stagger flex flex-col gap-3">
           {filtered.map((player) => (
             <PlayerCard key={player.id} player={player} />
           ))}
@@ -400,4 +400,4 @@ export default function Home() {
       )}
     </PageShell>
   );
-        }
+      }
