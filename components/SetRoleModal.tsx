@@ -10,15 +10,28 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  Coffee,
+  Swords,
+  Moon,
+  Zap,
+  XCircle,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+
+export type PlayStyle = 'chill' | 'competitive';
+
+export type RoleOptions = {
+  playStyle: PlayStyle;
+  afk: boolean;
+};
 
 type SetRoleModalProps = {
   open: boolean;
   user: User | null;
   onClose: () => void;
-  onSelectGame: (gameName: string) => Promise<boolean>;
+  onSelectGame: (gameName: string, options: RoleOptions) => Promise<boolean>;
+  onClearRole: () => Promise<boolean>;
   onSaved: () => Promise<void>;
 };
 
@@ -32,11 +45,16 @@ export default function SetRoleModal({
   user,
   onClose,
   onSelectGame,
+  onClearRole,
   onSaved,
 }: SetRoleModalProps) {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [playStyle, setPlayStyle] = useState<PlayStyle>('chill');
+  const [afk, setAfk] = useState(false);
+  const [hasRole, setHasRole] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [requestMode, setRequestMode] = useState(false);
@@ -82,6 +100,23 @@ export default function SetRoleModal({
         setGames((data as Game[]) ?? []);
       }
 
+      // Підтягуємо поточну роль користувача, щоб її можна було змінити або скасувати
+      if (user?.id) {
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('game, play_style, status')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (active && me) {
+          const currentGame = (me.game ?? '').trim();
+          setHasRole(currentGame !== '');
+          setSelectedGame(currentGame !== '' ? currentGame : null);
+          setPlayStyle(me.play_style === 'competitive' ? 'competitive' : 'chill');
+          setAfk(me.status === 'AFK');
+        }
+      }
+
       setLoading(false);
     };
 
@@ -90,7 +125,7 @@ export default function SetRoleModal({
     return () => {
       active = false;
     };
-  }, [open]);
+  }, [open, user?.id]);
 
   if (!open) return null;
 
@@ -102,7 +137,7 @@ export default function SetRoleModal({
     setMessage(null);
 
     try {
-      const saved = await onSelectGame(selectedGame);
+      const saved = await onSelectGame(selectedGame, { playStyle, afk });
 
       if (!saved) {
         return;
@@ -122,6 +157,32 @@ export default function SetRoleModal({
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Скасування ролі: гравець зникає зі списку
+  const handleClearRole = async () => {
+    if (!user?.id || clearing || saving) return;
+
+    setClearing(true);
+    setMessage(null);
+
+    try {
+      const cleared = await onClearRole();
+
+      if (!cleared) return;
+
+      await onSaved();
+      onClose();
+    } catch (error) {
+      console.error('Clear role error:', error);
+
+      setMessage({
+        type: 'error',
+        text: 'Something went wrong. Please try again.',
+      });
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -238,6 +299,75 @@ export default function SetRoleModal({
                 </div>
               )}
 
+              {/* Стиль гри та статус */}
+              {!loading && games.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <p className="mb-1.5 font-inter text-xs font-bold uppercase tracking-wide text-zinc-500">
+                      Play style
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['chill', 'Chill', Coffee],
+                        ['competitive', 'Competitive', Swords],
+                      ] as const).map(([value, label, Icon]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setPlayStyle(value)}
+                          disabled={saving || clearing}
+                          className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 font-inter text-sm font-bold disabled:opacity-50 ${
+                            playStyle === value
+                              ? 'border-green-500 bg-green-500/10 text-green-400'
+                              : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-1.5 font-inter text-xs font-bold uppercase tracking-wide text-zinc-500">
+                      Status
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAfk(false)}
+                        disabled={saving || clearing}
+                        className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 font-inter text-sm font-bold disabled:opacity-50 ${
+                          !afk
+                            ? 'border-green-500 bg-green-500/10 text-green-400'
+                            : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700'
+                        }`}
+                      >
+                        <Zap className="h-4 w-4" />
+                        Available
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAfk(true)}
+                        disabled={saving || clearing}
+                        className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 font-inter text-sm font-bold disabled:opacity-50 ${
+                          afk
+                            ? 'border-amber-500 bg-amber-500/10 text-amber-400'
+                            : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:border-zinc-700'
+                        }`}
+                      >
+                        <Moon className="h-4 w-4" />
+                        AFK
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Повідомлення */}
               {message && (
                 <div
@@ -261,22 +391,37 @@ export default function SetRoleModal({
               <div className="mt-5 flex flex-col gap-2">
                 <button
                   onClick={handleSaveGame}
-                  disabled={!selectedGame || loading || saving}
+                  disabled={!selectedGame || loading || saving || clearing}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-3 font-inter font-bold text-black transition-colors hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {saving && (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   )}
 
-                  {saving ? 'Saving...' : 'Save game'}
+                  {saving ? 'Saving...' : hasRole ? 'Update role' : 'Save game'}
                 </button>
+
+                {hasRole && (
+                  <button
+                    onClick={handleClearRole}
+                    disabled={saving || clearing}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 py-3 font-inter text-sm font-bold text-red-400 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {clearing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <XCircle className="h-4 w-4" />
+                    )}
+                    Cancel role
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
                     setRequestMode(true);
                     setMessage(null);
                   }}
-                  disabled={saving}
+                  disabled={saving || clearing}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 py-3 font-inter text-sm font-bold text-zinc-300 transition-colors hover:border-zinc-700 hover:bg-zinc-800"
                 >
                   <Plus className="h-4 w-4" />
@@ -356,4 +501,4 @@ export default function SetRoleModal({
       </div>
     </div>
   );
-      }
+    }
