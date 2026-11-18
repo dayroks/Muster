@@ -21,11 +21,12 @@ type Peer = {
   id: string;
   username: string | null;
   avatar_url: string | null;
+  is_verified?: boolean | null;
 };
 
 type SearchUser = Peer & { handle: string | null };
 
-const SEARCH_COLUMNS = 'id, username, handle, avatar_url';
+const SEARCH_COLUMNS = 'id, username, handle, avatar_url, is_verified';
 
 // Час у стилі Telegram: сьогодні HH:MM, вчора, день тижня, інакше дата
 function formatListTime(iso: string) {
@@ -49,12 +50,14 @@ function UserRow({
   avatarUrl,
   subtitle,
   time,
+  verified,
 }: {
   href: string;
   name: string;
   avatarUrl?: string | null;
   subtitle: ReactNode;
   time?: string;
+  verified?: boolean;
 }) {
   return (
     <li className="border-b border-zinc-800/50">
@@ -74,7 +77,18 @@ function UserRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate font-inter font-bold text-white">{name}</p>
+          <p className="flex min-w-0 items-center gap-0.5 font-inter font-bold text-white">
+            <span className="truncate">{name}</span>
+            {verified === true && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/galka.png"
+                alt="Verified"
+                title="Verified"
+                className="h-5 w-5 shrink-0 object-contain"
+              />
+            )}
+          </p>
           <p className="truncate font-inter text-sm font-medium text-zinc-500">{subtitle}</p>
         </div>
 
@@ -117,7 +131,7 @@ export default function ChatsPage() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url')
+        .select('id, username, avatar_url, is_verified')
         .in('id', missing);
 
       if (error) {
@@ -339,6 +353,7 @@ export default function ChatsPage() {
                 name={u.username || 'Unknown'}
                 avatarUrl={u.avatar_url}
                 subtitle={u.handle ? `@${u.handle}` : 'No username yet'}
+                verified={u.is_verified === true}
               />
             ))}
           </ul>
@@ -378,6 +393,7 @@ export default function ChatsPage() {
                 href={`/chats/chat?id=${peerId}`}
                 name={peer?.username || 'Unknown'}
                 avatarUrl={peer?.avatar_url}
+                verified={peer?.is_verified === true}
                 subtitle={
                   <>
                     {mine && <span className="text-zinc-400">You: </span>}
