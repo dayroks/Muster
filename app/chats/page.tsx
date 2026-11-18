@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import PageShell from '@/components/PageShell';
 import FullScreenLoader from '@/components/FullScreenLoader';
+import MentionText from '@/components/MentionText';
 
 type Message = {
   id: string | number;
@@ -411,7 +412,7 @@ export default function ChatsPage() {
                 subtitle={
                   <>
                     {mine && <span className="text-zinc-400">You: </span>}
-                    {msg.content}
+                    <MentionText text={msg.content} />
                   </>
                 }
                 time={formatListTime(msg.created_at)}
@@ -429,4 +430,4 @@ export default function ChatsPage() {
       </div>
     </PageShell>
   );
-                                }
+    }
