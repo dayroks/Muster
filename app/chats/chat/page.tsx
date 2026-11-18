@@ -296,7 +296,7 @@ function ChatInner() {
             })}
           </div>
         )}
-        <div ref={bottomRef} className="scroll-mb-36" />
+        <div ref={bottomRef} className="scroll-mb-60" />
       </main>
       </div>
 
@@ -348,4 +348,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-                                     }
+        }
