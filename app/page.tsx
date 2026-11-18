@@ -29,8 +29,8 @@ type ProfileRow = {
   status?: string | null;
 };
 
-// Ключ гри для порівняння: без регістру та зайвих пробілів
-const gameKey = (g?: string | null) => (g ?? '').trim().toLowerCase();
+const gameKey = (game?: string | null) =>
+  (game ?? '').trim().toLowerCase();
 
 export default function Home() {
   const { user, checking } = useRequireAuth();
@@ -43,19 +43,17 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
   const [gameFilter, setGameFilter] = useState<string | null>(null);
 
-  // Set Role Modal
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [savingGame, setSavingGame] = useState(false);
 
-  // Повідомлення
   const [toast, setToast] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
 
-  // Завантаження гравців
+  // Завантаження гравців, які шукають гру
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
     let active = true;
 
@@ -65,28 +63,34 @@ export default function Home() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, username, handle, avatar_url, game, status')
         .neq('id', user.id)
-        .not('status', 'is', null)
-        .neq('status', '');
+        .not('game', 'is', null)
+        .neq('game', '')
+        .eq('status', 'Looking for game');
 
       if (!active) return;
 
       if (error) {
-        console.error('Supabase error:', error.message);
+        console.error('Supabase players load error:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+
         setFailed(true);
+        setPlayers([]);
       } else {
         setPlayers(
-          ((data as ProfileRow[]) ?? [])
-            .filter((p) => (p.status ?? '').trim() !== '')
-            .map((p) => ({
-              id: p.id,
-              nickname: p.username ?? 'Player',
-              handle: p.handle ?? '',
-              avatarUrl: p.avatar_url ?? '',
-              game: p.game?.trim() ?? '',
-              status: p.status ?? '',
-            }))
+          ((data as ProfileRow[]) ?? []).map((profile) => ({
+            id: profile.id,
+            nickname: profile.username ?? 'Player',
+            handle: profile.handle ?? '',
+            avatarUrl: profile.avatar_url ?? '',
+            game: profile.game?.trim() ?? '',
+            status: profile.status ?? '',
+          }))
         );
       }
 
@@ -102,104 +106,107 @@ export default function Home() {
 
   // Збереження вибраної гри
   const handleSelectGame = async (gameName: string) => {
-  if (!user?.id || savingGame || !gameName.trim()) return;
+    if (!user?.id || savingGame || !gameName.trim()) return;
 
-  setSavingGame(true);
-  setToast(null);
+    setSavingGame(true);
+    setToast(null);
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({
-      game: gameName.trim(),
-      status: 'Looking for game',
-    })
-    .eq('id', user.id)
-    .select('id, game, status')
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        game: gameName.trim(),
+        status: 'Looking for game',
+      })
+      .eq('id', user.id)
+      .select('id, game, status')
+      .maybeSingle();
 
-  setSavingGame(false);
+    setSavingGame(false);
 
-  if (error) {
-    console.error('Supabase game save error:', {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-    });
+    if (error) {
+      console.error('Supabase game save error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+
+      setToast({
+        type: 'error',
+        text: `Save failed: ${error.message}`,
+      });
+
+      return;
+    }
+
+    if (!data) {
+      console.error(
+        'Profile was not updated. Check profile ID and RLS policies.'
+      );
+
+      setToast({
+        type: 'error',
+        text: 'Profile not found or update permission denied.',
+      });
+
+      return;
+    }
+
+    setShowRoleModal(false);
 
     setToast({
-      type: 'error',
-      text: `Save failed: ${error.message}`,
+      type: 'success',
+      text: `You are now looking for a game in ${gameName}!`,
     });
+  };
 
-    return;
-  }
-
-  if (!data) {
-    console.error('Profile was not updated. Check profile ID and RLS policies.');
-
-    setToast({
-      type: 'error',
-      text: 'Profile not found or update permission denied.',
-    });
-
-    return;
-  }
-
-  setShowRoleModal(false);
-
-  setToast({
-    type: 'success',
-    text: `You are now looking for a game in ${gameName}!`,
-  });
-};
-  // Унікальні ігри із завантажених гравців (для фільтра)
+  // Ігри для фільтра
   const games = useMemo(() => {
     const map = new Map<string, { label: string; count: number }>();
 
-    players.forEach((p) => {
-      const key = gameKey(p.game);
+    players.forEach((player) => {
+      const key = gameKey(player.game);
 
       if (!key) return;
 
-      const cur = map.get(key);
+      const current = map.get(key);
 
-      if (cur) {
-        cur.count += 1;
+      if (current) {
+        current.count += 1;
       } else {
         map.set(key, {
-          label: p.game as string,
+          label: player.game as string,
           count: 1,
         });
       }
     });
 
     return Array.from(map.entries())
-      .map(([key, v]) => ({
+      .map(([key, value]) => ({
         key,
-        ...v,
+        ...value,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [players]);
 
   const activeGameLabel =
-    games.find((g) => g.key === gameFilter)?.label ?? null;
+    games.find((game) => game.key === gameFilter)?.label ?? null;
 
-  // Локальний пошук + фільтр за грою
+  // Пошук і фільтрація
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/^@/, '');
 
-    return players.filter((p) => {
-      if (gameFilter && gameKey(p.game) !== gameFilter) {
+    return players.filter((player) => {
+      if (gameFilter && gameKey(player.game) !== gameFilter) {
         return false;
       }
 
       if (!q) return true;
 
       return (
-        p.nickname.toLowerCase().includes(q) ||
-        (p.handle ?? '').toLowerCase().includes(q) ||
-        (p.game ?? '').toLowerCase().includes(q)
+        player.nickname.toLowerCase().includes(q) ||
+        (player.handle ?? '').toLowerCase().includes(q) ||
+        (player.game ?? '').toLowerCase().includes(q)
       );
     });
   }, [players, query, gameFilter]);
@@ -211,7 +218,7 @@ export default function Home() {
 
   return (
     <PageShell>
-      {/* Set a role button */}
+      {/* Set a role */}
       <button
         onClick={() => {
           setToast(null);
@@ -228,21 +235,21 @@ export default function Home() {
         Set a role
       </button>
 
-      {/* Пошук і кнопка фільтрів */}
+      {/* Пошук і фільтри */}
       <div className="mb-3 flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
 
           <input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="Search by name, @username or game"
             className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-3 pl-10 pr-3 font-inter font-medium text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-green-500"
           />
         </div>
 
         <button
-          onClick={() => setShowFilters((v) => !v)}
+          onClick={() => setShowFilters((value) => !value)}
           aria-label="Filters"
           aria-expanded={showFilters}
           className={`relative flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border bg-zinc-900 transition-all ${
@@ -259,7 +266,7 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Панель фільтра: вибір гри */}
+      {/* Фільтр за грою */}
       {showFilters && (
         <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
           <div className="mb-3 flex items-center justify-between">
@@ -294,26 +301,26 @@ export default function Home() {
                 All games
               </button>
 
-              {games.map((g) => (
+              {games.map((game) => (
                 <button
-                  key={g.key}
-                  onClick={() => setGameFilter(g.key)}
+                  key={game.key}
+                  onClick={() => setGameFilter(game.key)}
                   className={`rounded-full border px-3 py-1.5 font-inter text-sm font-bold transition-colors ${
-                    gameFilter === g.key
+                    gameFilter === game.key
                       ? 'border-green-500 bg-green-500 text-black'
                       : 'border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-700'
                   }`}
                 >
-                  {g.label}
+                  {game.label}
 
                   <span
                     className={
-                      gameFilter === g.key
+                      gameFilter === game.key
                         ? 'ml-1.5 text-black/60'
                         : 'ml-1.5 text-zinc-500'
                     }
                   >
-                    {g.count}
+                    {game.count}
                   </span>
                 </button>
               ))}
@@ -322,7 +329,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Активний фільтр, коли панель закрита */}
+      {/* Активний фільтр */}
       {!showFilters && activeGameLabel && (
         <div className="mb-4 flex">
           <button
@@ -342,7 +349,7 @@ export default function Home() {
         </p>
       ) : failed ? (
         <p className="py-16 text-center font-inter font-medium text-zinc-500">
-          Couldn&apos;t load players. Try again later.
+          Couldn't load players. Try again later.
         </p>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
@@ -359,10 +366,7 @@ export default function Home() {
       ) : (
         <div className="flex flex-col gap-3">
           {filtered.map((player) => (
-            <PlayerCard
-              key={player.id}
-              player={player}
-            />
+            <PlayerCard key={player.id} player={player} />
           ))}
         </div>
       )}
@@ -375,7 +379,7 @@ export default function Home() {
         onSelectGame={handleSelectGame}
       />
 
-      {/* Toast notifications */}
+      {/* Повідомлення */}
       {toast && (
         <div
           className={`fixed bottom-24 left-1/2 z-[110] flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-xl border bg-zinc-900 px-4 py-3 font-inter text-sm font-bold shadow-xl ${
