@@ -308,3 +308,79 @@ body { background: #080d12; }
   }
 }
 
+
+
+/* =====================================================================
+   Muster motion system (без сторонніх бібліотек)
+   ===================================================================== */
+:root { --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.34, 1.56, .64, 1); }
+html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+
+@keyframes m-fade-up { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-sheet { from { opacity: 0; transform: translateY(28px) scale(.95); } to { opacity: 1; transform: none; } }
+@keyframes m-msg-in { from { opacity: 0; transform: translateY(8px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes m-badge-pop { 0% { opacity: 0; transform: scale(0) rotate(-35deg); } 60% { opacity: 1; transform: scale(1.3) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes m-icon-pop { 0% { transform: translateY(0) scale(.8); } 60% { transform: translateY(-3px) scale(1.2); } 100% { transform: translateY(-2px) scale(1.12); } }
+@keyframes m-pulse-dot { 0% { box-shadow: 0 0 0 0 rgba(54, 231, 123, .55); } 70% { box-shadow: 0 0 0 9px rgba(54, 231, 123, 0); } 100% { box-shadow: 0 0 0 0 rgba(54, 231, 123, 0); } }
+@keyframes m-toast-in { from { opacity: 0; translate: 0 16px; scale: .92; } to { opacity: 1; translate: 0 0; scale: 1; } }
+
+/* Вхід сторінки (main перемонтовується при кожній навігації) */
+.muster-page-content, .page-enter { animation: m-fade-up .45s var(--ease-out) backwards; }
+
+/* Каскадна поява елементів списку */
+.stagger > * { animation: m-fade-up .5s var(--ease-out) backwards; }
+.stagger > *:nth-child(1) { animation-delay: .04s; }
+.stagger > *:nth-child(2) { animation-delay: .09s; }
+.stagger > *:nth-child(3) { animation-delay: .14s; }
+.stagger > *:nth-child(4) { animation-delay: .19s; }
+.stagger > *:nth-child(5) { animation-delay: .24s; }
+.stagger > *:nth-child(6) { animation-delay: .29s; }
+.stagger > *:nth-child(7) { animation-delay: .34s; }
+.stagger > *:nth-child(8) { animation-delay: .39s; }
+.stagger > *:nth-child(n+9) { animation-delay: .43s; }
+
+/* Тактильний відгук при натисканні (властивість scale не ламає Tailwind-transform) */
+button, a[href], [role="button"] {
+  transition: scale .2s var(--ease-out), translate .25s var(--ease-out), background-color .2s ease, border-color .2s ease, color .2s ease, box-shadow .25s ease, opacity .2s ease;
+}
+button:not(:disabled):active, a[href]:active, [role="button"]:active { scale: .96; }
+button:disabled { cursor: not-allowed; }
+
+/* Картки гравців */
+.player-card { transition: scale .2s var(--ease-out), translate .25s var(--ease-out), border-color .2s ease, background-color .2s ease, box-shadow .25s ease; }
+.player-card:active { scale: .985; }
+@media (hover: hover) {
+  .player-card:hover { translate: 0 -2px; box-shadow: 0 12px 30px rgba(0, 0, 0, .35), 0 0 0 1px rgba(34, 197, 94, .18); }
+}
+
+/* Нижня навігація */
+.muster-glass-nav__item:active { scale: .92; }
+.muster-glass-nav__item svg { transition: transform .4s var(--ease-spring); }
+.muster-glass-nav__item.is-active svg { animation: m-icon-pop .55s var(--ease-spring) both; }
+
+/* Галка верифікації */
+img[src="/galka.png"] { animation: m-badge-pop .6s var(--ease-spring) .15s backwards; }
+
+/* Індикатор online */
+.muster-online span { animation: m-pulse-dot 2.2s ease-out infinite; }
+
+/* Модалки */
+.anim-backdrop { animation: m-fade-in .25s ease backwards; }
+.anim-sheet { animation: m-sheet .4s var(--ease-spring) backwards; }
+
+/* Повідомлення в чаті */
+.msg-in { animation: m-msg-in .28s var(--ease-out) backwards; }
+
+/* Тости */
+.toast-in { animation: m-toast-in .35s var(--ease-spring) backwards; }
+
+/* Поля вводу */
+input, textarea, select { transition: border-color .2s ease, box-shadow .25s ease, background-color .2s ease; }
+input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 3px rgba(34, 197, 94, .16); }
+
+/* Повага до налаштувань "зменшити рух" */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+}
