@@ -41,6 +41,7 @@ type ProfileData = {
   instagram: string;
   avatarUrl: string;
   bannerUrl: string;
+  is_verified: boolean;
 };
 
 const EMPTY: ProfileData = {
@@ -52,6 +53,7 @@ const EMPTY: ProfileData = {
   instagram: '',
   avatarUrl: '',
   bannerUrl: '',
+  is_verified: false,
 };
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
@@ -156,7 +158,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -173,6 +175,7 @@ export default function ProfilePage() {
             instagram: data.instagram ?? '',
             avatarUrl: data.avatar_url ?? '',
             bannerUrl: data.banner_url ?? '',
+            is_verified: data.is_verified === true,
           });
         }
         setLoadingProfile(false);
@@ -237,6 +240,7 @@ export default function ProfilePage() {
       instagram: draft.instagram.trim(),
       avatarUrl: draft.avatarUrl,
       bannerUrl: draft.bannerUrl,
+      is_verified: profile.is_verified,
     };
     if (!next.username) return;
 
@@ -567,8 +571,17 @@ export default function ProfilePage() {
               </div>
 
               <div className="mt-3 text-center">
-                <h2 className="font-onest text-xl font-extrabold tracking-tight text-white">
+                <h2 className="flex items-center justify-center gap-1.5 font-onest text-xl font-extrabold tracking-tight text-white">
                   {profile.username || 'Player'}
+                  {profile.is_verified === true && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src="/galka.png"
+                      alt="Verified"
+                      title="Verified"
+                      className="h-5 w-5 shrink-0 object-contain"
+                    />
+                  )}
                 </h2>
                 <p className="font-inter text-sm font-medium text-zinc-500">
                   {profile.handle ? `@${profile.handle}` : 'No username yet'}
@@ -659,4 +672,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-}
+            }
