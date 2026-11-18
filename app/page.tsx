@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -51,17 +50,19 @@ export default function Home() {
     text: string;
   } | null>(null);
 
-  // Завантаження всіх профілів, які мають гру або шукають гру
+  // Завантаження профілів, які обрали гру
   const loadPlayers = useCallback(async () => {
     if (!user?.id) return;
 
     setLoading(true);
     setFailed(false);
 
+    // ВИПРАВЛЕНО: Беремо тільки тих, у кого поле game не пусте
     const { data, error } = await supabase
       .from('profiles')
       .select('id, username, handle, avatar_url, game, status')
-      .or('game.not.is.null,status.eq.Looking for game');
+      .not('game', 'is', null)
+      .neq('game', '');
 
     if (error) {
       console.error('Supabase players load error:', {
@@ -77,13 +78,9 @@ export default function Home() {
       return;
     }
 
-    // Залишаємо профілі, у яких є назва гри
-    // АБО статус Looking for game.
-    // Поточного користувача НЕ виключаємо.
+    // ВИПРАВЛЕНО: Залишаємо тільки ті профілі, де реально є текст гри
     const validProfiles = ((data as ProfileRow[]) ?? []).filter(
-      (profile) =>
-        (profile.game ?? '').trim() !== '' ||
-        profile.status === 'Looking for game'
+      (profile) => (profile.game ?? '').trim() !== ''
     );
 
     setPlayers(
@@ -401,4 +398,4 @@ export default function Home() {
       )}
     </PageShell>
   );
-}
+        }
