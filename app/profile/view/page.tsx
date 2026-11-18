@@ -1,5 +1,6 @@
 'use client';
 
+import { StickerCreatorBadge, StickerCreatorNote } from '@/components/StickerCreatorBadge';
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -19,6 +20,7 @@ type OtherProfile = {
   avatarUrl: string;
   bannerUrl: string;
   is_verified: boolean;
+  is_sticker_creator: boolean;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,7 +49,7 @@ function ViewInner() {
 
     supabase
       .from('profiles')
-      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified, is_sticker_creator')
       .eq('id', id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -64,6 +66,7 @@ function ViewInner() {
             avatarUrl: data.avatar_url ?? '',
             bannerUrl: data.banner_url ?? '',
             is_verified: data.is_verified === true,
+            is_sticker_creator: data.is_sticker_creator === true,
           });
         }
         setLoading(false);
@@ -110,6 +113,7 @@ function ViewInner() {
 
               <div className="mt-3 text-center">
                 <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
+                  {profile.is_sticker_creator === true && <StickerCreatorBadge className="h-6 w-6" />}
                   {profile.username || 'Player'}
                   {profile.is_verified === true && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -136,6 +140,7 @@ function ViewInner() {
                   label="about me"
                   value={profile.bio || 'Nothing here yet'}
                 />
+                {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.telegram && (
                   <InfoRow
                     Icon={Send}
@@ -186,4 +191,4 @@ export default function ViewProfilePage() {
       <ViewInner />
     </Suspense>
   );
-                    }
+                }
