@@ -1,5 +1,6 @@
 'use client';
 
+import { StickerCreatorBadge, StickerCreatorNote } from '@/components/StickerCreatorBadge';
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import Link from 'next/link';
@@ -42,6 +43,7 @@ type ProfileData = {
   avatarUrl: string;
   bannerUrl: string;
   is_verified: boolean;
+  is_sticker_creator: boolean;
 };
 
 const EMPTY: ProfileData = {
@@ -54,6 +56,7 @@ const EMPTY: ProfileData = {
   avatarUrl: '',
   bannerUrl: '',
   is_verified: false,
+  is_sticker_creator: false,
 };
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
@@ -158,7 +161,7 @@ export default function ProfilePage() {
 
     supabase
       .from('profiles')
-      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified, is_sticker_creator')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -176,6 +179,7 @@ export default function ProfilePage() {
             avatarUrl: data.avatar_url ?? '',
             bannerUrl: data.banner_url ?? '',
             is_verified: data.is_verified === true,
+            is_sticker_creator: data.is_sticker_creator === true,
           });
         }
         setLoadingProfile(false);
@@ -241,6 +245,7 @@ export default function ProfilePage() {
       avatarUrl: draft.avatarUrl,
       bannerUrl: draft.bannerUrl,
       is_verified: profile.is_verified,
+      is_sticker_creator: profile.is_sticker_creator,
     };
     if (!next.username) return;
 
@@ -565,6 +570,7 @@ export default function ProfilePage() {
 
               <div className="mt-3 text-center">
                 <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
+                  {profile.is_sticker_creator === true && <StickerCreatorBadge className="h-6 w-6" />}
                   {profile.username || 'Player'}
                   {profile.is_verified === true && (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -588,6 +594,7 @@ export default function ProfilePage() {
                   label="about me"
                   value={profile.bio || 'Nothing here yet'}
                 />
+                {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.telegram && (
                   <InfoRow
                     Icon={Send}
@@ -665,4 +672,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-}
+      }
