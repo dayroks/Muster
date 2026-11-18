@@ -15,7 +15,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { MiniAppCreatorBadge } from '@/components/MiniAppBadges';
+import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 
 type MiniApp = {
   id: string;
