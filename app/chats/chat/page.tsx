@@ -229,7 +229,7 @@ function ChatInner() {
             {messages.map((m) => {
               const mine = m.sender_id === myId;
               return (
-                <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id} className={`msg-in flex ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${
                       mine
@@ -305,4 +305,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-          }
+}
