@@ -86,7 +86,7 @@ function Banner({ url }: { url: string }) {
 
 function AvatarCircle({ url, name }: { url: string; name: string }) {
   return (
-    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-green-500 bg-zinc-900 shadow-[0_0_25px_rgba(34,197,94,0.25)]">
+    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-zinc-950 bg-zinc-900">
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="Avatar" className="h-full w-full object-cover" />
@@ -561,13 +561,6 @@ export default function ProfilePage() {
             <div className="relative -mt-12 flex flex-col items-center px-4">
               <div className="relative h-24 w-24">
                 <AvatarCircle url={profile.avatarUrl} name={profile.username} />
-                <button
-                  onClick={startEditing}
-                  aria-label="Edit profile"
-                  className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border-2 border-zinc-950 bg-green-500 text-black transition-colors hover:bg-green-400"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
               </div>
 
               <div className="mt-3 text-center">
@@ -579,7 +572,7 @@ export default function ProfilePage() {
                       src="/galka.png"
                       alt="Verified"
                       title="Verified"
-                      className="h-7 w-7 shrink-0 object-contain"
+                      className="h-6 w-6 shrink-0 object-contain"
                     />
                   )}
                 </h2>
