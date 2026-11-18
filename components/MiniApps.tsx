@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+/* eslint-disable @next/next/no-img-element */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import {
   AlertCircle,
@@ -23,6 +24,7 @@ type MiniApp = {
   name: string;
   description: string;
   icon: string;
+  icon_url: string | null;
   url: string;
 };
 
@@ -30,10 +32,64 @@ type Owner = { username: string | null; is_mini_app_creator: boolean | null };
 
 type OwnerRow = { id: string; username: string | null; is_mini_app_creator: boolean | null };
 
-const EMPTY_FORM = { name: '', description: '', icon: '🧩', url: '' };
+const EMPTY_FORM = { name: '', description: '', icon: '🧩', iconUrl: '', url: '' };
+
+const ICON_BUCKET = 'avatars';
+const MAX_ICON_FILE = 5 * 1024 * 1024; // 5 MB
+const MAX_SAVE_BYTES = 48000; // ліміт збереження прогресу на користувача/міні-ап
 
 const inputClass =
   'w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 font-inter font-medium text-white outline-none placeholder:text-zinc-500 focus:border-green-500';
+
+// Іконка міні-апу: картинка або емодзі
+function AppIcon({
+  icon,
+  iconUrl,
+  className = 'h-11 w-11 text-2xl',
+}: {
+  icon: string;
+  iconUrl?: string | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-800 ${className}`}
+    >
+      {iconUrl ? <img src={iconUrl} alt="" className="h-full w-full object-cover" /> : icon}
+    </span>
+  );
+}
+
+// Квадратна іконка 256x256 (обрізка по центру) для економії місця
+async function squareIcon(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available');
+  const side = Math.min(bitmap.width, bitmap.height);
+  ctx.drawImage(
+    bitmap,
+    (bitmap.width - side) / 2,
+    (bitmap.height - side) / 2,
+    side,
+    side,
+    0,
+    0,
+    size,
+    size
+  );
+  bitmap.close();
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode image'))),
+      'image/webp',
+      0.9
+    );
+  });
+}
 
 // Дозволяємо лише https-посилання
 function validateUrl(raw: string): string | null {
@@ -54,10 +110,15 @@ export default function MiniAppsPanel({ user }: { user: User }) {
 
   const [view, setView] = useState<'list' | 'creator' | 'form'>('list');
   const [openApp, setOpenApp] = useState<MiniApp | null>(null);
+  const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const lastSaveAt = useRef(0);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -65,7 +126,7 @@ export default function MiniAppsPanel({ user }: { user: User }) {
     const [appsRes, meRes] = await Promise.all([
       supabase
         .from('mini_apps')
-        .select('id, owner_id, name, description, icon, url')
+        .select('id, owner_id, name, description, icon, icon_url, url')
         .order('created_at', { ascending: false }),
       supabase.from('profiles').select('is_mini_app_creator').eq('id', user.id).maybeSingle(),
     ]);
@@ -102,6 +163,93 @@ export default function MiniAppsPanel({ user }: { user: User }) {
     void load();
   }, [load]);
 
+  // Міст між міні-апом і Muster: збереження/завантаження прогресу гравця.
+  // Міні-ап не бачить сесію — усе робить Muster від імені поточного користувача.
+  useEffect(() => {
+    if (!openApp) return;
+    const appId = openApp.id;
+
+    const handler = async (event: MessageEvent) => {
+      const frame = iframeRef.current;
+      if (!frame || event.source !== frame.contentWindow) return;
+
+      const msg = event.data as { muster?: boolean; id?: number; type?: string; payload?: unknown } | null;
+      if (!msg || msg.muster !== true || typeof msg.id !== 'number') return;
+
+      const target = event.origin === 'null' ? '*' : event.origin;
+      const reply = (body: { data?: unknown; error?: string }) => {
+        (event.source as Window | null)?.postMessage({ muster: true, id: msg.id, ...body }, target);
+      };
+
+      if (msg.type === 'load') {
+        const { data, error: loadError } = await supabase
+          .from('mini_app_saves')
+          .select('data')
+          .eq('user_id', user.id)
+          .eq('app_id', appId)
+          .maybeSingle();
+
+        if (loadError) {
+          console.error('Mini app load error:', loadError);
+          reply({ error: 'load_failed' });
+        } else {
+          reply({ data: data?.data ?? null });
+        }
+        return;
+      }
+
+      if (msg.type === 'save') {
+        const now = Date.now();
+        if (now - lastSaveAt.current < 500) {
+          reply({ error: 'too_many_requests' });
+          return;
+        }
+        lastSaveAt.current = now;
+
+        if (msg.payload === undefined || msg.payload === null) {
+          reply({ error: 'invalid_data' });
+          return;
+        }
+
+        let bytes = 0;
+        try {
+          bytes = new TextEncoder().encode(JSON.stringify(msg.payload)).length;
+        } catch {
+          reply({ error: 'invalid_data' });
+          return;
+        }
+
+        if (bytes > MAX_SAVE_BYTES) {
+          reply({ error: 'too_large' });
+          return;
+        }
+
+        const { error: saveError } = await supabase.from('mini_app_saves').upsert(
+          {
+            user_id: user.id,
+            app_id: appId,
+            data: msg.payload,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,app_id' }
+        );
+
+        if (saveError) {
+          console.error('Mini app save error:', saveError);
+          reply({ error: 'save_failed' });
+        } else {
+          reply({ data: true });
+        }
+        return;
+      }
+
+      reply({ error: 'unknown_type' });
+    };
+
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [openApp, user.id]);
+
   const myApps = apps.filter((a) => a.owner_id === user.id);
 
   const startNew = () => {
@@ -113,7 +261,13 @@ export default function MiniAppsPanel({ user }: { user: User }) {
 
   const startEdit = (app: MiniApp) => {
     setEditingId(app.id);
-    setForm({ name: app.name, description: app.description, icon: app.icon, url: app.url });
+    setForm({
+      name: app.name,
+      description: app.description,
+      icon: app.icon,
+      iconUrl: app.icon_url ?? '',
+      url: app.url,
+    });
     setError(null);
     setView('form');
   };
@@ -136,7 +290,7 @@ export default function MiniAppsPanel({ user }: { user: User }) {
     setSaving(true);
     setError(null);
 
-    const payload = { name, description, icon, url };
+    const payload = { name, description, icon, icon_url: form.iconUrl || null, url };
 
     const res = editingId
       ? await supabase.from('mini_apps').update(payload).eq('id', editingId).select('id')
@@ -154,6 +308,86 @@ export default function MiniAppsPanel({ user }: { user: User }) {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setView('creator');
+  };
+
+  const handleIconFile = async (file: File | undefined) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.');
+      return;
+    }
+    if (file.size > MAX_ICON_FILE) {
+      setError('Image is too large (max 5 MB).');
+      return;
+    }
+
+    setUploadingIcon(true);
+    setError(null);
+
+    try {
+      const blob = await squareIcon(file);
+      const ext = blob.type === 'image/png' ? 'png' : 'webp';
+      const path = `${user.id}/miniapp-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(ICON_BUCKET)
+        .upload(path, blob, { cacheControl: '3600', upsert: false, contentType: blob.type });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from(ICON_BUCKET).getPublicUrl(path);
+      setForm((f) => ({ ...f, iconUrl: data.publicUrl }));
+    } catch (e) {
+      console.error('Icon upload error:', e);
+      setError('Could not upload the image. Try another one.');
+    } finally {
+      setUploadingIcon(false);
+    }
+  };
+
+  // Відкриваємо міні-ап: підтягуємо збережений прогрес і передаємо його в хеші посилання,
+  // щоб muster-sdk.js міг відновити localStorage ще до старту гри.
+  const handleOpen = async (app: MiniApp) => {
+    if (openingId) return;
+    setOpeningId(app.id);
+
+    let src = app.url;
+
+    try {
+      const { data } = await supabase
+        .from('mini_app_saves')
+        .select('data')
+        .eq('user_id', user.id)
+        .eq('app_id', app.id)
+        .maybeSingle();
+
+      const snapshot = data?.data;
+
+      if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)) {
+        const bytes = new TextEncoder().encode(JSON.stringify(snapshot));
+        let bin = '';
+        bytes.forEach((b) => {
+          bin += String.fromCharCode(b);
+        });
+        const encoded = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+        if (encoded.length < 100000) {
+          src = `${app.url.split('#')[0]}#__muster=${encoded}`;
+        }
+      }
+    } catch (e) {
+      console.error('Mini app open error:', e);
+    }
+
+    setFrameSrc(src);
+    setOpenApp(app);
+    setOpeningId(null);
+  };
+
+  const closeApp = () => {
+    setOpenApp(null);
+    setFrameSrc(null);
   };
 
   const handleDelete = async (app: MiniApp) => {
@@ -225,6 +459,38 @@ export default function MiniAppsPanel({ user }: { user: User }) {
             />
           </div>
 
+          <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3">
+            <AppIcon icon={form.icon} iconUrl={form.iconUrl} className="h-14 w-14 text-3xl" />
+            <div className="flex flex-wrap gap-2">
+              <label
+                className={`cursor-pointer rounded-lg bg-zinc-800 px-3 py-2 font-inter text-sm font-bold text-white hover:bg-zinc-700 ${
+                  uploadingIcon ? 'pointer-events-none opacity-60' : ''
+                }`}
+              >
+                {uploadingIcon ? 'Uploading...' : 'Upload image'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingIcon}
+                  onChange={(e) => {
+                    void handleIconFile(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {form.iconUrl && (
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, iconUrl: '' })}
+                  className="rounded-lg px-3 py-2 font-inter text-sm font-bold text-red-400 hover:bg-red-500/10"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+
           <input
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -258,7 +524,7 @@ export default function MiniAppsPanel({ user }: { user: User }) {
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || uploadingIcon}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-3 font-inter font-bold text-black hover:bg-green-400 disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -310,9 +576,7 @@ export default function MiniAppsPanel({ user }: { user: User }) {
                 key={app.id}
                 className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-2xl">
-                  {app.icon}
-                </span>
+                <AppIcon icon={app.icon} iconUrl={app.icon_url} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-inter font-bold text-white">{app.name}</p>
                   <p className="truncate font-inter text-xs font-medium text-zinc-500">{app.url}</p>
@@ -372,12 +636,11 @@ export default function MiniAppsPanel({ user }: { user: User }) {
           return (
             <li key={app.id}>
               <button
-                onClick={() => setOpenApp(app)}
+                onClick={() => void handleOpen(app)}
+                disabled={openingId !== null}
                 className="flex w-full items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-left hover:border-zinc-700"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-2xl">
-                  {app.icon}
-                </span>
+                <AppIcon icon={app.icon} iconUrl={app.icon_url} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-inter font-bold text-white">{app.name}</p>
                   {app.description && (
@@ -409,13 +672,13 @@ export default function MiniAppsPanel({ user }: { user: User }) {
         <div className="anim-backdrop fixed inset-0 z-[90] flex flex-col bg-zinc-950">
           <div className="flex items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-3 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]">
             <button
-              onClick={() => setOpenApp(null)}
+              onClick={closeApp}
               aria-label="Close mini app"
               className="rounded-lg p-2 text-zinc-300 hover:bg-zinc-800 hover:text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <span className="text-xl">{openApp.icon}</span>
+            <AppIcon icon={openApp.icon} iconUrl={openApp.icon_url} className="h-9 w-9 text-xl" />
             <p className="min-w-0 flex-1 truncate font-onest text-lg font-extrabold text-white">
               {openApp.name}
             </p>
@@ -432,7 +695,8 @@ export default function MiniAppsPanel({ user }: { user: User }) {
 
           <iframe
             key={openApp.id}
-            src={openApp.url}
+            ref={iframeRef}
+            src={frameSrc ?? openApp.url}
             title={openApp.name}
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals"
             referrerPolicy="no-referrer"
@@ -442,4 +706,4 @@ export default function MiniAppsPanel({ user }: { user: User }) {
       )}
     </>
   );
-}
+    }
