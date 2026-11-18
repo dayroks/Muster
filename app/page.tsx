@@ -26,6 +26,7 @@ type ProfileRow = {
   avatar_url?: string | null;
   game?: string | null;
   status?: string | null;
+  is_verified?: boolean | null;
 };
 
 const gameKey = (game?: string | null) =>
@@ -60,7 +61,7 @@ export default function Home() {
     // ВИПРАВЛЕНО: Беремо тільки тих, у кого поле game не пусте
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, username, handle, avatar_url, game, status')
+      .select('id, username, handle, avatar_url, game, status, is_verified')
       .not('game', 'is', null)
       .neq('game', '');
 
@@ -91,6 +92,7 @@ export default function Home() {
         avatarUrl: profile.avatar_url ?? '',
         game: profile.game?.trim() ?? '',
         status: profile.status ?? '',
+        is_verified: profile.is_verified === true,
       }))
     );
 
@@ -398,4 +400,4 @@ export default function Home() {
       )}
     </PageShell>
   );
-        }
+      }
