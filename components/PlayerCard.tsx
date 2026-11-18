@@ -4,6 +4,7 @@ import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
 import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import Link from 'next/link';
 import { Gamepad2 } from 'lucide-react';
+import MentionText from '@/components/MentionText';
 
 export type Player = {
   id: string;
@@ -70,7 +71,7 @@ export default function PlayerCard({ player }: { player: Player }) {
         {player.game && (
           <p className="mt-0.5 flex items-center gap-1.5 truncate font-inter text-xs font-medium text-zinc-500">
             <Gamepad2 className="h-3.5 w-3.5 shrink-0" />
-            {player.game}
+            <MentionText text={player.game} />
           </p>
         )}
         {player.playStyle && (
@@ -93,7 +94,7 @@ export default function PlayerCard({ player }: { player: Player }) {
                 : 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]'
             }`}
           />
-          {player.status}
+          <MentionText text={player.status} />
         </div>
       )}
     </div>
