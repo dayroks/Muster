@@ -52,7 +52,7 @@ export default function PlayerCard({ player }: { player: Player }) {
               src="/galka.png"
               alt="Verified"
               title="Verified"
-              className="h-5 w-5 shrink-0 object-contain"
+              className="h-7 w-7 shrink-0 object-contain"
             />
           )}
         </p>
