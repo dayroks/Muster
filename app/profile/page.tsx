@@ -555,7 +555,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           /* ---------- РЕЖИМ ПЕРЕГЛЯДУ ---------- */
-          <div className="relative w-full">
+          <div className="page-enter relative w-full">
             <Banner url={profile.bannerUrl} />
 
             <div className="relative -mt-12 flex flex-col items-center px-4">
@@ -647,7 +647,7 @@ export default function ProfilePage() {
 
       {toast && (
         <div
-          className={`fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border bg-zinc-900 px-4 py-3 font-inter font-bold ${
+          className={`toast-in fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border bg-zinc-900 px-4 py-3 font-inter font-bold ${
             toast.type === 'success'
               ? 'border-green-500/30 text-green-400'
               : 'border-red-500/30 text-red-400'
