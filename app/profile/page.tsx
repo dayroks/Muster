@@ -29,6 +29,7 @@ import { useRequireAuth } from '@/lib/useRequireAuth';
 import Header from '@/components/Header';
 import BottomNav from '@/components/BottomNav';
 import FullScreenLoader from '@/components/FullScreenLoader';
+import MentionText from '@/components/MentionText';
 
 const BUCKET = 'avatars';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -113,18 +114,20 @@ function InfoRow({
   label,
   value,
   href,
+  renderMentions = false,
 }: {
   Icon: ComponentType<{ className?: string }>;
   color: string;
   label: string;
   value: string;
   href?: string;
+  renderMentions?: boolean;
 }) {
   const content = (
     <>
       <Icon className={`h-5 w-5 shrink-0 ${color}`} />
       <div className="min-w-0 flex-1">
-        <p className="break-words font-inter text-sm font-medium text-white">{value}</p>
+        <p className="break-words font-inter text-sm font-medium text-white">{renderMentions ? <MentionText text={value} /> : value}</p>
         <p className="font-inter text-xs font-bold text-zinc-500">{label}</p>
       </div>
     </>
@@ -599,6 +602,7 @@ export default function ProfilePage() {
                   color="text-zinc-400"
                   label="about me"
                   value={profile.bio || 'Nothing here yet'}
+                  renderMentions
                 />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
@@ -679,4 +683,4 @@ export default function ProfilePage() {
       <BottomNav />
     </div>
   );
-      }
+  }
