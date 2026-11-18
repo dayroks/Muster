@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import BottomNav from '@/components/BottomNav';
 import FullScreenLoader from '@/components/FullScreenLoader';
+import MentionText from '@/components/MentionText';
 
 type Message = {
   id: string | number;
@@ -319,7 +320,7 @@ function ChatInner() {
         <div className="desktop-chat-sidebar__items">
           {chatPeers.map((peer) => <Link key={peer.id} href={`/chats/chat?id=${peer.id}`} className={`desktop-chat-peer ${peer.id === peerId ? 'is-current' : ''}`}>
             <div className="desktop-chat-peer__avatar">{peer.avatar_url ? <img src={peer.avatar_url} alt=""/> : peer.username.charAt(0).toUpperCase()}</div>
-            <div><b>{peer.username}</b><small>{peer.lastText}</small></div>
+            <div><b>{peer.username}</b><small><MentionText text={peer.lastText} /></small></div>
           </Link>)}
           {!chatPeers.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No conversations yet</p>}
         </div>
@@ -426,4 +427,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-        }
+                                                              }
