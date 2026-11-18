@@ -1,6 +1,7 @@
 'use client';
 
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -37,7 +38,7 @@ function ChatInner() {
   const { user, checking } = useRequireAuth();
   const myId = user?.id ?? '';
 
-  const [peerInfo, setPeerInfo] = useState<{ username: string; handle: string | null; avatar_url: string | null; is_verified: boolean; is_sticker_creator: boolean } | null>(null);
+  const [peerInfo, setPeerInfo] = useState<{ username: string; handle: string | null; avatar_url: string | null; is_verified: boolean; is_sticker_creator: boolean; is_mini_app_creator: boolean } | null>(null);
   const [chatPeers, setChatPeers] = useState<Array<{ id: string; username: string; avatar_url: string | null; lastText: string }>>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +81,7 @@ function ChatInner() {
     if (!user || !UUID_RE.test(peerId)) return;
     supabase
       .from('profiles')
-      .select('username, handle, avatar_url, is_verified, is_sticker_creator')
+      .select('username, handle, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator')
       .eq('id', peerId)
       .maybeSingle()
       .then(({ data }) =>
@@ -92,6 +93,7 @@ function ChatInner() {
                 avatar_url: data.avatar_url ?? null,
                 is_verified: data.is_verified === true,
                 is_sticker_creator: data.is_sticker_creator === true,
+                is_mini_app_creator: data.is_mini_app_creator === true,
               }
             : null,
         ),
@@ -230,6 +232,7 @@ function ChatInner() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src="/galka.png" alt="Verified" title="Verified" className="h-5 w-5 shrink-0 object-contain" />
                 )}
+                {peerInfo?.is_mini_app_creator && <MiniAppCreatorBadge className="h-5 w-5" />}
               </h1>
               {peerInfo?.handle && (
                 <p className="truncate font-inter text-xs font-medium leading-tight text-zinc-500">
@@ -345,4 +348,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-        }
+                                     }
