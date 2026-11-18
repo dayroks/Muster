@@ -18,7 +18,7 @@ export default function PlayerCard({ player }: { player: Player }) {
   const isOnline = player.status?.toLowerCase() === 'online';
 
   return (
-    <div className="relative flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 transition-all hover:border-zinc-700 active:bg-zinc-800/60">
+    <div className="player-card relative flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 hover:border-zinc-700 active:bg-zinc-800/60">
       {/* Клік по будь-якому місцю картки відкриває чат */}
       <Link
         href={`/chats/chat?id=${player.id}`}
