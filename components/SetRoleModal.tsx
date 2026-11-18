@@ -168,14 +168,14 @@ export default function SetRoleModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+      className="anim-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
       onClick={(event) => {
         if (event.target === event.currentTarget && !saving) {
           onClose();
         }
       }}
     >
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+      <div className="anim-sheet w-full max-w-md overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <div>
@@ -356,4 +356,4 @@ export default function SetRoleModal({
       </div>
     </div>
   );
-}
+      }
