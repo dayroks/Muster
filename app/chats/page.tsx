@@ -2,15 +2,16 @@
 
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
 import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Send, Search, MessageCircle, AlertCircle } from 'lucide-react';
+import { MessageCircle, Search, Users, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
-import BottomNav from '@/components/BottomNav';
+import PageShell from '@/components/PageShell';
 import FullScreenLoader from '@/components/FullScreenLoader';
 import MentionText from '@/components/MentionText';
+import MiniAppsPanel from '@/components/MiniApps';
 
 type Message = {
   id: string | number;
@@ -20,411 +21,439 @@ type Message = {
   created_at: string;
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+type Peer = {
+  id: string;
+  username: string | null;
+  avatar_url: string | null;
+  is_verified?: boolean | null;
+  is_sticker_creator?: boolean | null;
+  is_mini_app_creator?: boolean | null;
+};
 
-function mergeMessages(a: Message[], b: Message[]): Message[] {
-  const map = new Map<string | number, Message>();
-  [...a, ...b].forEach((m) => map.set(m.id, m));
-  return Array.from(map.values()).sort(
-    (x, y) => new Date(x.created_at).getTime() - new Date(y.created_at).getTime()
+type SearchUser = Peer & { handle: string | null };
+
+const SEARCH_COLUMNS = 'id, username, handle, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator';
+
+// Час у стилі Telegram: сьогодні HH:MM, вчора, день тижня, інакше дата
+function formatListTime(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+
+  if (diffDays <= 0) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short' });
+  return d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+// Спільний рядок списку (і для активних чатів, і для результатів пошуку)
+function UserRow({
+  href,
+  name,
+  avatarUrl,
+  subtitle,
+  time,
+  verified,
+  stickerCreator,
+  miniAppCreator,
+}: {
+  href: string;
+  name: string;
+  avatarUrl?: string | null;
+  subtitle: ReactNode;
+  time?: string;
+  verified?: boolean;
+  stickerCreator?: boolean;
+  miniAppCreator?: boolean;
+}) {
+  return (
+    <li className="border-b border-zinc-800/50">
+      <Link
+        href={href}
+        className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-zinc-900/60 active:bg-zinc-900"
+      >
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
+          ) : (
+            <span className="font-onest text-lg font-extrabold text-black">
+              {name.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="flex min-w-0 items-center gap-0.5 font-inter font-bold text-white">
+            {stickerCreator === true && <StickerCreatorBadge className="h-5 w-5" />}
+            <span className="truncate">{name}</span>
+            {verified === true && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/galka.png"
+                alt="Verified"
+                title="Verified"
+                className="h-5 w-5 shrink-0 object-contain"
+              />
+            )}
+            {miniAppCreator === true && <MiniAppCreatorBadge className="h-5 w-5" />}
+          </p>
+          <p className="truncate font-inter text-sm font-medium text-zinc-500">{subtitle}</p>
+        </div>
+
+        {time && (
+          <span className="shrink-0 self-start pt-1 font-inter text-xs font-medium text-zinc-500">
+            {time}
+          </span>
+        )}
+      </Link>
+    </li>
   );
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function ChatInner() {
-  const peerId = useSearchParams().get('id') ?? '';
+export default function ChatsPage() {
   const { user, checking } = useRequireAuth();
-  const myId = user?.id ?? '';
 
-  const [peerInfo, setPeerInfo] = useState<{ username: string; handle: string | null; avatar_url: string | null; is_verified: boolean; is_sticker_creator: boolean; is_mini_app_creator: boolean } | null>(null);
-  const [chatPeers, setChatPeers] = useState<Array<{ id: string; username: string; avatar_url: string | null; lastText: string }>>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  /* ---------- Активні чати ---------- */
+  const [last, setLast] = useState<Record<string, Message>>({});
+  const [profiles, setProfiles] = useState<Record<string, Peer>>({});
   const [loading, setLoading] = useState(true);
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState('');
+  const [failed, setFailed] = useState(false);
+  const profilesRef = useRef<Record<string, Peer>>({});
 
-  const router = useRouter();
-  const [mentionToast, setMentionToast] = useState('');
-  const mentionToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* ---------- Глобальний пошук ---------- */
+  const [tab, setTab] = useState<'chats' | 'apps'>('chats');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchUser[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const searchSeq = useRef(0);
 
-  const showMentionToast = (msg: string) => {
-    setMentionToast(msg);
-    if (mentionToastTimer.current) clearTimeout(mentionToastTimer.current);
-    mentionToastTimer.current = setTimeout(() => setMentionToast(''), 2500);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (mentionToastTimer.current) clearTimeout(mentionToastTimer.current);
-    };
-  }, []);
-
-  // Клік по @юзернейму: шукаємо профіль, якщо є — відкриваємо, якщо ні — повідомлення
-  const openMention = async (handle: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('handle', handle.toLowerCase())
-      .maybeSingle();
-
-    if (error || !data?.id) {
-      showMentionToast('No profile found');
-      return;
-    }
-    router.push(`/profile/view?id=${data.id}`);
-  };
-
-  // Розбиває текст повідомлення і робить із @юзернеймів синні клікабельні посилання
-  const renderContent = (content: string, mine: boolean) => {
-    const parts: React.ReactNode[] = [];
-    const re = /(^|[^A-Za-z0-9_])@([A-Za-z0-9_]+)/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(content)) !== null) {
-      const start = m.index + m[1].length; // позиція символу @
-      if (start > last) parts.push(content.slice(last, start));
-      const handle = m[2];
-      parts.push(
-        <button
-          key={`${start}-${handle}`}
-          type="button"
-          onClick={() => openMention(handle)}
-          className={`cursor-pointer font-bold underline-offset-2 hover:underline ${
-            mine ? 'text-blue-800' : 'text-sky-400'
-          }`}
-        >
-          @{handle}
-        </button>
-      );
-      last = start + 1 + handle.length;
-    }
-    if (last < content.length) parts.push(content.slice(last));
-    return parts;
-  };
-
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const didInitialScroll = useRef(false);
-
-  const idsValid = UUID_RE.test(myId) && UUID_RE.test(peerId) && myId !== peerId;
-
-  // Список діалогів для desktop sidebar (ті самі повідомлення Supabase)
+  // Історія повідомлень + realtime
   useEffect(() => {
     if (!user) return;
-    let alive = true;
-    const loadPeers = async () => {
-      const { data } = await supabase.from('messages').select('*')
-        .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
-        .order('created_at', { ascending: false }).limit(500);
-      if (!alive || !data) return;
-      const latest = new Map<string, Message>();
-      (data as Message[]).forEach((m) => {
-        const id = m.sender_id === myId ? m.receiver_id : m.sender_id;
-        if (id !== myId && !latest.has(id)) latest.set(id, m);
+    const me = user.id;
+    let active = true;
+
+    const ensureProfiles = async (ids: string[]) => {
+      const missing = ids.filter((id) => !profilesRef.current[id]);
+      if (missing.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator')
+        .in('id', missing);
+
+      if (error) {
+        console.error('Profiles error:', error.message);
+        return;
+      }
+      if (!active) return;
+
+      const added: Record<string, Peer> = {};
+      ((data as Peer[]) ?? []).forEach((p) => {
+        added[p.id] = p;
       });
-      const ids = Array.from(latest.keys());
-      if (!ids.length) { setChatPeers([]); return; }
-      const { data: people } = await supabase.from('profiles').select('id, username, avatar_url').in('id', ids);
-      if (!alive) return;
-      const byId = new Map<string, { username: string | null; avatar_url: string | null }>((((people ?? []) as Array<{ id: string; username: string | null; avatar_url: string | null }>).map((p) => [p.id, p])));
-      setChatPeers(ids.map((id) => ({ id, username: byId.get(id)?.username || 'Player', avatar_url: byId.get(id)?.avatar_url || null, lastText: latest.get(id)?.content || '' })));
+      profilesRef.current = { ...profilesRef.current, ...added };
+      setProfiles(profilesRef.current);
     };
-    loadPeers();
-    return () => { alive = false; };
-  }, [user, myId]);
 
-  // Ім'я співрозмовника
-  useEffect(() => {
-    if (!user || !UUID_RE.test(peerId)) return;
-    supabase
-      .from('profiles')
-      .select('username, handle, avatar_url, is_verified, is_sticker_creator, is_mini_app_creator')
-      .eq('id', peerId)
-      .maybeSingle()
-      .then(({ data }) =>
-        setPeerInfo(
-          data
-            ? {
-                username: data.username || 'Player',
-                handle: data.handle ?? null,
-                avatar_url: data.avatar_url ?? null,
-                is_verified: data.is_verified === true,
-                is_sticker_creator: data.is_sticker_creator === true,
-                is_mini_app_creator: data.is_mini_app_creator === true,
-              }
-            : null,
-        ),
-      );
-  }, [user, peerId]);
+    const applyMessage = (m: Message) => {
+      const peer = m.sender_id === me ? m.receiver_id : m.sender_id;
+      if (peer === me) return;
 
-  const addMessage = useCallback((msg: Message) => {
-    setMessages((prev) => mergeMessages(prev, [msg]));
-  }, []);
-
-  // Realtime-підписка
-  useEffect(() => {
-    if (!idsValid) return;
-
-    const channel = supabase
-      .channel(`chat-${myId}-${peerId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${myId}` },
-        (payload) => {
-          const m = payload.new as Message;
-          if (m.sender_id === peerId) addMessage(m);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${myId}` },
-        (payload) => {
-          const m = payload.new as Message;
-          if (m.receiver_id === peerId) addMessage(m);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
+      setLast((prev) => {
+        const cur = prev[peer];
+        if (cur && new Date(cur.created_at) >= new Date(m.created_at)) return prev;
+        return { ...prev, [peer]: m };
+      });
+      ensureProfiles([peer]);
     };
-  }, [idsValid, myId, peerId, addMessage]);
 
-  // Історія
-  useEffect(() => {
-    if (checking) return;
-    if (!idsValid) {
-      setLoading(false);
-      return;
-    }
-
-    const loadHistory = async () => {
+    const load = async () => {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .or(
-          `and(sender_id.eq.${myId},receiver_id.eq.${peerId}),and(sender_id.eq.${peerId},receiver_id.eq.${myId})`
-        )
-        .order('created_at', { ascending: true });
+        .or(`sender_id.eq.${me},receiver_id.eq.${me}`)
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (!active) return;
 
       if (error) {
-        console.error('Load messages error:', error.message);
-        setError('Could not load messages');
-      } else {
-        setMessages((prev) => mergeMessages((data as Message[]) ?? [], prev));
+        console.error('Messages error:', error.message);
+        setFailed(true);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      const latest: Record<string, Message> = {};
+      ((data as Message[]) ?? []).forEach((m) => {
+        const peer = m.sender_id === me ? m.receiver_id : m.sender_id;
+        if (peer !== me && !latest[peer]) latest[peer] = m;
+      });
+
+      setLast((prev) => {
+        const merged = { ...prev };
+        Object.entries(latest).forEach(([peer, m]) => {
+          const cur = merged[peer];
+          if (!cur || new Date(m.created_at) > new Date(cur.created_at)) merged[peer] = m;
+        });
+        return merged;
+      });
+
+      await ensureProfiles(Object.keys(latest));
+      if (active) setLoading(false);
     };
-    loadHistory();
-  }, [checking, idsValid, myId, peerId]);
 
-  // Автоскрол
-  useEffect(() => {
-    if (loading) return;
-    const scrollDown = (behavior: ScrollBehavior) =>
-      bottomRef.current?.scrollIntoView({ behavior, block: 'end' });
+    const channel = supabase
+      .channel(`chats-list-${me}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${me}` },
+        (payload) => applyMessage(payload.new as Message)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${me}` },
+        (payload) => applyMessage(payload.new as Message)
+      )
+      .subscribe();
 
-    scrollDown(didInitialScroll.current ? 'smooth' : 'auto');
-    didInitialScroll.current = true;
+    load();
 
-    // Довгі повідомлення дорівнюють висоті не одразу (анімація, перенесення рядків),
-    // тому після короткої паузи прокручуємо ще раз миттєво, вже до справжнього низу.
-    const t1 = setTimeout(() => scrollDown('auto'), 350);
-    const t2 = setTimeout(() => scrollDown('auto'), 700);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
+      active = false;
+      supabase.removeChannel(channel);
     };
-  }, [messages, loading]);
+  }, [user]);
 
-  const handleSend = async () => {
-    const content = text.trim();
-    if (!content || sending || !idsValid) return;
+  // Глобальний пошук по profiles (з паузою 300 мс)
+  useEffect(() => {
+    if (!user) return;
+    const me = user.id;
+    const raw = query.trim().replace(/^@+/, '');
+    const seq = ++searchSeq.current; // нова відповідь скасовує застарілі
 
-    setSending(true);
-    setError('');
-
-    // sender_id має збігатися з auth.uid(), інакше RLS відхилить запис
-    const { data, error } = await supabase
-      .from('messages')
-      .insert({ sender_id: myId, receiver_id: peerId, content })
-      .select()
-      .single();
-
-    setSending(false);
-
-    if (error) {
-      console.error('Send error:', error.message);
-      setError('Message was not sent. Try again.');
+    if (!raw) {
+      setResults([]);
+      setSearchLoading(false);
+      setSearchFailed(false);
       return;
     }
 
-    if (data) addMessage(data as Message);
-    setText('');
-  };
+    setSearchLoading(true);
+    setSearchFailed(false);
+
+    const timer = setTimeout(async () => {
+      // екрануємо символи LIKE, щоб "_" і "%" шукались як звичайні символи
+      const pattern = `%${raw.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+      const [byName, byHandle] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select(SEARCH_COLUMNS)
+          .neq('id', me)
+          .ilike('username', pattern)
+          .limit(30),
+        supabase
+          .from('profiles')
+          .select(SEARCH_COLUMNS)
+          .neq('id', me)
+          .ilike('handle', pattern)
+          .limit(30),
+      ]);
+
+      if (seq !== searchSeq.current) return;
+
+      if (byName.error) console.error('Search (name) error:', byName.error.message);
+      if (byHandle.error) console.error('Search (username) error:', byHandle.error.message);
+
+      if (byName.error && byHandle.error) {
+        setSearchFailed(true);
+        setResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      // об'єднуємо результати без дублікатів
+      const map = new Map<string, SearchUser>();
+      [...((byName.data as SearchUser[]) ?? []), ...((byHandle.data as SearchUser[]) ?? [])].forEach(
+        (u) => map.set(u.id, u)
+      );
+
+      setResults(
+        Array.from(map.values())
+          .sort((a, b) => (a.username ?? '').localeCompare(b.username ?? ''))
+          .slice(0, 30)
+      );
+      setSearchLoading(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, user]);
+
+  // Активні чати за часом останнього повідомлення
+  const items = useMemo(
+    () =>
+      Object.entries(last)
+        .sort(
+          (a, b) =>
+            new Date(b[1].created_at).getTime() - new Date(a[1].created_at).getTime()
+        )
+        .map(([peerId, msg]) => ({ peerId, msg, peer: profiles[peerId] })),
+    [last, profiles]
+  );
 
   if (checking) return <FullScreenLoader />;
 
-  return (
-    <div className="min-h-screen bg-zinc-950 desktop-chat-page">
-      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-6 py-4">
-          <Link
-            href="/chats"
-            aria-label="Back"
-            className="text-zinc-300 transition-colors hover:text-white"
-          >
-            <ArrowLeft className="h-6 w-6" />
-          </Link>
-          <Link
-            href={`/profile/view?id=${peerId}`}
-            className="flex min-w-0 flex-1 items-center gap-3"
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
-              {peerInfo?.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={peerInfo.avatar_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-onest text-base font-extrabold text-black">
-                  {(peerInfo?.username || '?').charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <h1 className="flex min-w-0 items-center gap-0.5 font-onest text-lg font-extrabold leading-tight text-white">
-                {peerInfo?.is_sticker_creator && <StickerCreatorBadge className="h-5 w-5" />}
-                <span className="truncate">{peerInfo?.username || '...'}</span>
-                {peerInfo?.is_verified && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src="/galka.png" alt="Verified" title="Verified" className="h-5 w-5 shrink-0 object-contain" />
-                )}
-                {peerInfo?.is_mini_app_creator && <MiniAppCreatorBadge className="h-5 w-5" />}
-              </h1>
-              {peerInfo?.handle && (
-                <p className="truncate font-inter text-xs font-medium leading-tight text-zinc-500">
-                  @{peerInfo.handle}
-                </p>
-              )}
-            </div>
-          </Link>
-        </div>
-      </header>
+  const isSearching = query.trim() !== '';
 
-      <div className="desktop-chat-workspace">
-      <aside className="desktop-chat-sidebar">
-        <div className="desktop-chat-sidebar__head"><strong>Messages</strong><span>{chatPeers.length}</span></div>
-        <div className="desktop-chat-sidebar__search"><Search className="h-4 w-4"/><span>Search conversations</span></div>
-        <div className="desktop-chat-sidebar__items">
-          {chatPeers.map((peer) => <Link key={peer.id} href={`/chats/chat?id=${peer.id}`} className={`desktop-chat-peer ${peer.id === peerId ? 'is-current' : ''}`}>
-            <div className="desktop-chat-peer__avatar">{peer.avatar_url ? <img src={peer.avatar_url} alt=""/> : peer.username.charAt(0).toUpperCase()}</div>
-            <div><b>{peer.username}</b><small><MentionText text={peer.lastText} /></small></div>
-          </Link>)}
-          {!chatPeers.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No conversations yet</p>}
-        </div>
-      </aside>
-      <main className="desktop-chat-conversation">
-        {loading ? (
-          <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
-        ) : !idsValid ? (
-          <p className="py-16 text-center font-inter font-medium text-zinc-500">
-            Chat not found.
-          </p>
-        ) : messages.length === 0 ? (
-          <p className="py-16 text-center font-inter font-medium text-zinc-500">
-            No messages yet. Say hi!
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {messages.map((m) => {
-              const mine = m.sender_id === myId;
-              return (
-                <div key={m.id} className={`msg-in flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${
-                      mine
-                        ? 'rounded-br-md bg-green-500 text-black'
-                        : 'rounded-bl-md bg-zinc-800 text-white'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap break-words font-inter text-[15px] font-medium">
-                      {renderContent(m.content, mine)}
-                    </p>
-                    <p
-                      className={`mt-0.5 text-right font-inter text-[10px] font-medium ${
-                        mine ? 'text-black/60' : 'text-zinc-400'
-                      }`}
-                    >
-                      {formatTime(m.created_at)}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div ref={bottomRef} className="scroll-mb-60" />
-      </main>
+  return (
+    <PageShell>
+      <div className="desktop-chats-layout">
+      <section className="desktop-chats-list">
+      {/* Вкладки: Chats / Mini Apps */}
+      <div className="mb-4 flex items-end gap-6">
+        {([
+          ['chats', 'Chats'],
+          ['apps', 'Mini Apps'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setTab(value)}
+            className={`relative pb-1.5 font-onest text-2xl font-extrabold tracking-tight ${
+              tab === value ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'
+            }`}
+          >
+            {label}
+            {tab === value && (
+              <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-green-500" />
+            )}
+          </button>
+        ))}
       </div>
 
-      {idsValid && (
-        <div
-          className="fixed inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur-md"
-          style={{ bottom: 'calc(7rem + env(safe-area-inset-bottom))' }}
-        >
-          <div className="mx-auto w-full max-w-6xl px-6 py-3">
-            {error && (
-              <p className="mb-2 font-inter text-xs font-medium text-red-400">{error}</p>
-            )}
-            <div className="flex items-center gap-2">
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                enterKeyHint="send"
-                maxLength={2000}
-                placeholder="Message..."
-                className="min-w-0 flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2.5 font-inter font-medium text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-green-500"
-              />
-              <button
-                onClick={handleSend}
-                disabled={!text.trim() || sending}
-                aria-label="Send"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-              >
-                <Send className="h-5 w-5" />
-              </button>
+      {tab === 'apps' && user ? (
+        <MiniAppsPanel user={user} />
+      ) : (
+      <>
+
+      {/* Поле пошуку */}
+      <div className="relative mb-3">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search users by name or @username"
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-3 pl-10 pr-10 font-inter font-medium text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-green-500"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 transition-colors hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+
+      {isSearching ? (
+        /* ---------- РЕЖИМ ПОШУКУ (по всій базі) ---------- */
+        searchLoading ? (
+          <p className="py-16 text-center font-inter font-medium text-zinc-500">Searching...</p>
+        ) : searchFailed ? (
+          <p className="py-16 text-center font-inter font-medium text-zinc-500">
+            Search failed. Try again later.
+          </p>
+        ) : results.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900">
+              <Search className="h-8 w-8 text-zinc-500" />
             </div>
+            <p className="font-inter font-medium text-zinc-400">No users found</p>
           </div>
+        ) : (
+          <ul className="stagger -mx-4">
+            {results.map((u) => (
+              <UserRow
+                key={u.id}
+                href={`/chats/chat?id=${u.id}`}
+                name={u.username || 'Unknown'}
+                avatarUrl={u.avatar_url}
+                subtitle={u.handle ? `@${u.handle}` : 'No username yet'}
+                verified={u.is_verified === true}
+                stickerCreator={u.is_sticker_creator === true}
+                miniAppCreator={u.is_mini_app_creator === true}
+              />
+            ))}
+          </ul>
+        )
+      ) : /* ---------- АКТИВНІ ЧАТИ ---------- */ loading ? (
+        <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
+      ) : failed ? (
+        <p className="py-16 text-center font-inter font-medium text-zinc-500">
+          Couldn&apos;t load chats. Try again later.
+        </p>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900">
+            <MessageCircle className="h-8 w-8 text-zinc-500" />
+          </div>
+          <div>
+            <p className="font-inter font-bold text-white">No chats yet</p>
+            <p className="mt-1 font-inter font-medium text-zinc-400">
+              Search for a user above or find players to start messaging!
+            </p>
+          </div>
+          <Link
+            href="/"
+            className="mt-2 flex items-center gap-2 rounded-xl bg-green-500 px-5 py-3 font-inter font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400"
+          >
+            <Users className="h-5 w-5" />
+            Find players
+          </Link>
         </div>
+      ) : (
+        <ul className="stagger -mx-4">
+          {items.map(({ peerId, msg, peer }) => {
+            const mine = msg.sender_id === user?.id;
+            return (
+              <UserRow
+                key={peerId}
+                href={`/chats/chat?id=${peerId}`}
+                name={peer?.username || 'Unknown'}
+                avatarUrl={peer?.avatar_url}
+                verified={peer?.is_verified === true}
+                stickerCreator={peer?.is_sticker_creator === true}
+                miniAppCreator={peer?.is_mini_app_creator === true}
+                subtitle={
+                  <>
+                    {mine && <span className="text-zinc-400">You: </span>}
+                    <MentionText text={msg.content} />
+                  </>
+                }
+                time={formatListTime(msg.created_at)}
+              />
+            );
+          })}
+        </ul>
       )}
-
-      {mentionToast && (
-        <div
-          className="toast-in fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-red-500/30 bg-zinc-900 px-4 py-3 font-inter font-bold text-red-400"
-          style={{ bottom: 'calc(15.5rem + env(safe-area-inset-bottom))' }}
-        >
-          <AlertCircle className="h-5 w-5" />
-          {mentionToast}
-        </div>
+      </>
       )}
-
-      <BottomNav />
-    </div>
-  );
-}
-
-export default function ChatPage() {
-  return (
-    <Suspense fallback={null}>
-      <ChatInner />
-    </Suspense>
+      </section>
+      <section className="desktop-chat-welcome">
+        <div className="desktop-chat-welcome__mark"><MessageCircle className="h-9 w-9" /></div>
+        <h3>Select a conversation</h3>
+        <p>Choose a chat from the list or search for a player to start talking.</p>
+      </section>
+      </div>
+    </PageShell>
   );
     }
