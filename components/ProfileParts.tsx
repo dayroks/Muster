@@ -28,7 +28,7 @@ export function Banner({ url }: { url: string }) {
 
 export function AvatarCircle({ url, name }: { url: string; name: string }) {
   return (
-    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-green-500 bg-zinc-900 shadow-[0_0_25px_rgba(34,197,94,0.25)]">
+    <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-zinc-950 bg-zinc-900">
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="Avatar" className="h-full w-full object-cover" />
