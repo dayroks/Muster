@@ -143,6 +143,7 @@ function ViewInner() {
                   color="text-zinc-400"
                   label="about me"
                   value={profile.bio || 'Nothing here yet'}
+                  renderMentions
                 />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
