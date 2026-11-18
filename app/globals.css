@@ -360,7 +360,7 @@ button:disabled { cursor: not-allowed; }
 .muster-glass-nav__item.is-active svg { animation: m-icon-pop .55s var(--ease-spring) both; }
 
 /* Галка верифікації */
-img[src="/galka.png"] { animation: m-badge-pop .6s var(--ease-spring) .15s backwards; }
+img[src="/galka.png"], img[src="/sticker-creator.png"] { animation: m-badge-pop .6s var(--ease-spring) .15s backwards; }
 
 /* Індикатор online */
 .muster-online span { animation: m-pulse-dot 2.2s ease-out infinite; }
