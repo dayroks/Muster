@@ -36,7 +36,7 @@ function ChatInner() {
   const { user, checking } = useRequireAuth();
   const myId = user?.id ?? '';
 
-  const [peerName, setPeerName] = useState('');
+  const [peerInfo, setPeerInfo] = useState<{ username: string; handle: string | null; avatar_url: string | null; is_verified: boolean } | null>(null);
   const [chatPeers, setChatPeers] = useState<Array<{ id: string; username: string; avatar_url: string | null; lastText: string }>>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,10 +79,21 @@ function ChatInner() {
     if (!user || !UUID_RE.test(peerId)) return;
     supabase
       .from('profiles')
-      .select('username')
+      .select('username, handle, avatar_url, is_verified')
       .eq('id', peerId)
       .maybeSingle()
-      .then(({ data }) => setPeerName(data?.username ?? ''));
+      .then(({ data }) =>
+        setPeerInfo(
+          data
+            ? {
+                username: data.username || 'Player',
+                handle: data.handle ?? null,
+                avatar_url: data.avatar_url ?? null,
+                is_verified: data.is_verified === true,
+              }
+            : null,
+        ),
+      );
   }, [user, peerId]);
 
   const addMessage = useCallback((msg: Message) => {
@@ -195,9 +206,35 @@ function ChatInner() {
           >
             <ArrowLeft className="h-6 w-6" />
           </Link>
-          <h1 className="truncate font-onest text-lg font-extrabold text-white">
-            Chat with {peerName || '...'}
-          </h1>
+          <Link
+            href={`/profile/view?id=${peerId}`}
+            className="flex min-w-0 flex-1 items-center gap-3"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
+              {peerInfo?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={peerInfo.avatar_url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-onest text-base font-extrabold text-black">
+                  {(peerInfo?.username || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <h1 className="flex min-w-0 items-center gap-0.5 font-onest text-lg font-extrabold leading-tight text-white">
+                <span className="truncate">{peerInfo?.username || '...'}</span>
+                {peerInfo?.is_verified && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src="/galka.png" alt="Verified" title="Verified" className="h-5 w-5 shrink-0 object-contain" />
+                )}
+              </h1>
+              {peerInfo?.handle && (
+                <p className="truncate font-inter text-xs font-medium leading-tight text-zinc-500">
+                  @{peerInfo.handle}
+                </p>
+              )}
+            </div>
+          </Link>
         </div>
       </header>
 
@@ -305,4 +342,4 @@ export default function ChatPage() {
       <ChatInner />
     </Suspense>
   );
-}
+          }
