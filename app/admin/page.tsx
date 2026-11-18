@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Settings,
   AlertCircle,
+  Search,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -33,7 +34,15 @@ type GameRequest = {
   status: string;
 };
 
-type Tab = 'requests' | 'games';
+type AdminProfile = {
+  id: string;
+  username: string | null;
+  handle: string | null;
+  avatar_url: string | null;
+  is_verified: boolean;
+};
+
+type Tab = 'requests' | 'games' | 'users';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -46,6 +55,8 @@ export default function AdminPage() {
 
   const [requests, setRequests] = useState<GameRequest[]>([]);
   const [games, setGames] = useState<Game[]>([]);
+  const [users, setUsers] = useState<AdminProfile[]>([]);
+  const [userSearch, setUserSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -96,7 +107,7 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
 
-    const [requestsResult, gamesResult] = await Promise.all([
+    const [requestsResult, gamesResult, usersResult] = await Promise.all([
       supabase
         .from('game_requests')
         .select('id, game_name, requested_by, status')
@@ -107,12 +118,17 @@ export default function AdminPage() {
         .from('games')
         .select('id, name')
         .order('name', { ascending: true }),
+
+      supabase
+        .from('profiles')
+        .select('id, username, handle, avatar_url, is_verified')
+        .order('username', { ascending: true }),
     ]);
 
-    if (requestsResult.error || gamesResult.error) {
+    if (requestsResult.error || gamesResult.error || usersResult.error) {
       console.error(
         'Admin data error:',
-        requestsResult.error || gamesResult.error
+        requestsResult.error || gamesResult.error || usersResult.error
       );
 
       setMessage({
@@ -122,6 +138,7 @@ export default function AdminPage() {
     } else {
       setRequests((requestsResult.data as GameRequest[]) ?? []);
       setGames((gamesResult.data as Game[]) ?? []);
+      setUsers((usersResult.data as AdminProfile[]) ?? []);
     }
 
     setLoading(false);
@@ -259,6 +276,48 @@ export default function AdminPage() {
     showMessage('Game deleted.', 'success');
   };
 
+  const handleToggleVerification = async (profile: AdminProfile) => {
+    const nextValue = !profile.is_verified;
+    setProcessingId(profile.id);
+    setMessage(null);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_verified: nextValue })
+      .eq('id', profile.id);
+
+    if (error) {
+      console.error('Verification update error:', error);
+      showMessage(
+        error.message || 'Could not update verification status.',
+        'error'
+      );
+    } else {
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === profile.id
+            ? { ...item, is_verified: nextValue }
+            : item
+        )
+      );
+      showMessage(
+        nextValue ? 'Verification badge granted.' : 'Verification badge removed.',
+        'success'
+      );
+    }
+
+    setProcessingId(null);
+  };
+
+  const filteredUsers = users.filter((profile) => {
+    const q = userSearch.trim().toLowerCase().replace(/^@/, '');
+    if (!q) return true;
+    return (
+      (profile.username ?? '').toLowerCase().includes(q) ||
+      (profile.handle ?? '').toLowerCase().includes(q)
+    );
+  });
+
   if (checking || checkingRole || (!isAdmin && user)) {
     return <FullScreenLoader />;
   }
@@ -285,7 +344,7 @@ export default function AdminPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-zinc-800 bg-zinc-900 p-1.5">
+      <div className="mb-5 grid grid-cols-3 gap-2 rounded-xl border border-zinc-800 bg-zinc-900 p-1.5">
         <button
           onClick={() => setActiveTab('requests')}
           className={`flex items-center justify-center gap-2 rounded-lg py-3 font-inter text-sm font-bold transition-all ${
@@ -319,6 +378,18 @@ export default function AdminPage() {
         >
           <Settings className="h-4 w-4" />
           Manage Games
+        </button>
+
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`flex items-center justify-center gap-2 rounded-lg py-3 font-inter text-sm font-bold transition-all ${
+            activeTab === 'users'
+              ? 'bg-green-500 text-black'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Users className="h-4 w-4" />
+          Manage Users
         </button>
       </div>
 
@@ -501,8 +572,109 @@ export default function AdminPage() {
               )}
             </div>
           )}
+
+          {/* MANAGE USERS */}
+          {activeTab === 'users' && (
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-onest text-lg font-extrabold text-white">
+                  Manage Users
+                </h2>
+                <span className="font-inter text-xs font-bold text-zinc-500">
+                  {users.length} users
+                </span>
+              </div>
+
+              <div className="relative mb-4">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
+                <input
+                  value={userSearch}
+                  onChange={(event) => setUserSearch(event.target.value)}
+                  placeholder="Search by nickname or @username..."
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 py-3 pl-10 pr-3 font-inter text-sm text-white outline-none placeholder:text-zinc-500 focus:border-green-500"
+                />
+              </div>
+
+              <div className="mb-3 flex items-center justify-between">
+                <p className="font-inter text-sm font-bold text-zinc-300">
+                  All users
+                </p>
+                <span className="font-inter text-xs text-zinc-500">
+                  {filteredUsers.length} found
+                </span>
+              </div>
+
+              {filteredUsers.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-10 text-center font-inter text-sm text-zinc-500">
+                  No users found.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {filteredUsers.map((profile) => (
+                    <div
+                      key={profile.id}
+                      className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+                        {profile.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={profile.avatar_url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="font-onest font-bold text-zinc-300">
+                            {(profile.username || 'P').charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate font-inter text-sm font-bold text-white">
+                            {profile.username || 'Player'}
+                          </span>
+                          {profile.is_verified === true && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src="/galka.png"
+                              alt="Verified"
+                              className="h-4 w-4 shrink-0 object-contain"
+                            />
+                          )}
+                        </div>
+                        <p className="truncate font-inter text-xs text-zinc-500">
+                          {profile.handle ? `@${profile.handle}` : 'No username'}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleToggleVerification(profile)}
+                        disabled={processingId === profile.id}
+                        className={`flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-inter text-xs font-bold transition-colors disabled:opacity-50 ${
+                          profile.is_verified
+                            ? 'border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                            : 'bg-green-500 text-black hover:bg-green-400'
+                        }`}
+                      >
+                        {processingId === profile.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : profile.is_verified ? (
+                          <X className="h-4 w-4" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                        {profile.is_verified ? 'Remove Badge' : 'Give Badge'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </PageShell>
   );
-}
+        }
