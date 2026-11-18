@@ -15,6 +15,7 @@ import {
   Settings,
   AlertCircle,
   Search,
+  Users,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
