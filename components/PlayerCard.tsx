@@ -44,7 +44,7 @@ export default function PlayerCard({ player }: { player: Player }) {
 
       {/* Текст пропускає кліки до посилання на чат */}
       <div className="pointer-events-none relative min-w-0 flex-1">
-        <p className="flex min-w-0 items-center gap-1.5 truncate font-inter font-bold text-white">
+        <p className="flex min-w-0 items-center gap-0.5 truncate font-inter font-bold text-white">
           <span className="truncate">{name}</span>
           {player.is_verified === true && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -52,7 +52,7 @@ export default function PlayerCard({ player }: { player: Player }) {
               src="/galka.png"
               alt="Verified"
               title="Verified"
-              className="h-7 w-7 shrink-0 object-contain"
+              className="h-6 w-6 shrink-0 object-contain"
             />
           )}
         </p>
