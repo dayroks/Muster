@@ -1,6 +1,7 @@
 'use client';
 
 import { StickerCreatorBadge, StickerCreatorNote } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge, MiniAppCreatorNote } from '@/components/MiniAppCreatorBadge';
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,6 +22,7 @@ type OtherProfile = {
   bannerUrl: string;
   is_verified: boolean;
   is_sticker_creator: boolean;
+  is_mini_app_creator: boolean;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,7 +51,7 @@ function ViewInner() {
 
     supabase
       .from('profiles')
-      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified, is_sticker_creator')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified, is_sticker_creator, is_mini_app_creator')
       .eq('id', id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -67,6 +69,7 @@ function ViewInner() {
             bannerUrl: data.banner_url ?? '',
             is_verified: data.is_verified === true,
             is_sticker_creator: data.is_sticker_creator === true,
+            is_mini_app_creator: data.is_mini_app_creator === true,
           });
         }
         setLoading(false);
@@ -124,6 +127,7 @@ function ViewInner() {
                       className="h-6 w-6 shrink-0 object-contain"
                     />
                   )}
+                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
                 </h2>
                 {profile.handle && (
                   <p className="font-inter text-sm font-medium text-zinc-500">
@@ -141,6 +145,7 @@ function ViewInner() {
                   value={profile.bio || 'Nothing here yet'}
                 />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
+                {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
                 {profile.telegram && (
                   <InfoRow
                     Icon={Send}
@@ -191,4 +196,4 @@ export default function ViewProfilePage() {
       <ViewInner />
     </Suspense>
   );
-                }
+}
