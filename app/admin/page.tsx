@@ -282,10 +282,17 @@ export default function AdminPage() {
     setProcessingId(profile.id);
     setMessage(null);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update({ is_verified: nextValue })
-      .eq('id', profile.id);
+      .eq('id', profile.id)
+      .select('id');
+
+    if (!error && (!data || data.length === 0)) {
+      showMessage('Update blocked (check RLS policy).', 'error');
+      setProcessingId(null);
+      return;
+    }
 
     if (error) {
       console.error('Verification update error:', error);
