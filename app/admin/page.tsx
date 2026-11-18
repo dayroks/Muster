@@ -1,6 +1,7 @@
 
 'use client';
 
+import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -41,6 +42,7 @@ type AdminProfile = {
   handle: string | null;
   avatar_url: string | null;
   is_verified: boolean;
+  is_sticker_creator: boolean;
 };
 
 type Tab = 'requests' | 'games' | 'users';
@@ -122,7 +124,7 @@ export default function AdminPage() {
 
       supabase
         .from('profiles')
-        .select('id, username, handle, avatar_url, is_verified')
+        .select('id, username, handle, avatar_url, is_verified, is_sticker_creator')
         .order('username', { ascending: true }),
     ]);
 
@@ -310,6 +312,37 @@ export default function AdminPage() {
       );
       showMessage(
         nextValue ? 'Verification badge granted.' : 'Verification badge removed.',
+        'success'
+      );
+    }
+
+    setProcessingId(null);
+  };
+
+  const handleToggleStickerCreator = async (profile: AdminProfile) => {
+    const nextValue = !profile.is_sticker_creator;
+    setProcessingId(`sc-${profile.id}`);
+    setMessage(null);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ is_sticker_creator: nextValue })
+      .eq('id', profile.id)
+      .select('id');
+
+    if (error) {
+      console.error('Sticker creator update error:', error);
+      showMessage(error.message || 'Could not update Sticker Creator status.', 'error');
+    } else if (!data || data.length === 0) {
+      showMessage('Update blocked (check RLS policy).', 'error');
+    } else {
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === profile.id ? { ...item, is_sticker_creator: nextValue } : item
+        )
+      );
+      showMessage(
+        nextValue ? 'Sticker Creator badge granted.' : 'Sticker Creator badge removed.',
         'success'
       );
     }
@@ -640,6 +673,9 @@ export default function AdminPage() {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 items-center gap-1.5">
+                          {profile.is_sticker_creator === true && (
+                            <StickerCreatorBadge className="h-4 w-4" />
+                          )}
                           <span className="truncate font-inter text-sm font-bold text-white">
                             {profile.username || 'Player'}
                           </span>
@@ -657,6 +693,7 @@ export default function AdminPage() {
                         </p>
                       </div>
 
+                      <div className="flex shrink-0 flex-col gap-1.5">
                       <button
                         onClick={() => handleToggleVerification(profile)}
                         disabled={processingId === profile.id}
@@ -675,6 +712,25 @@ export default function AdminPage() {
                         )}
                         {profile.is_verified ? 'Remove Badge' : 'Give Badge'}
                       </button>
+
+                      <button
+                        onClick={() => handleToggleStickerCreator(profile)}
+                        disabled={processingId === `sc-${profile.id}`}
+                        className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 font-inter text-xs font-bold disabled:opacity-50 ${
+                          profile.is_sticker_creator
+                            ? 'border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                            : 'bg-violet-500 text-white hover:bg-violet-400'
+                        }`}
+                      >
+                        {processingId === `sc-${profile.id}` ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src="/sticker-creator.png" alt="" className="h-4 w-4 object-contain" />
+                        )}
+                        {profile.is_sticker_creator ? 'Remove Creator' : 'Sticker Creator'}
+                      </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -685,4 +741,4 @@ export default function AdminPage() {
       )}
     </PageShell>
   );
-        }
+    }
