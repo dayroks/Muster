@@ -1,6 +1,7 @@
 'use client';
 
 import { StickerCreatorBadge } from '@/components/StickerCreatorBadge';
+import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import Link from 'next/link';
 import { Gamepad2 } from 'lucide-react';
 
@@ -14,6 +15,7 @@ export type Player = {
   playStyle?: string;
   is_verified?: boolean;
   is_sticker_creator?: boolean;
+  is_mini_app_creator?: boolean;
 };
 
 export default function PlayerCard({ player }: { player: Player }) {
@@ -60,6 +62,7 @@ export default function PlayerCard({ player }: { player: Player }) {
               className="h-6 w-6 shrink-0 object-contain"
             />
           )}
+          {player.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
         </p>
         <p className="truncate font-inter text-sm font-medium text-zinc-400">
           {player.handle ? `@${player.handle}` : 'No username yet'}
