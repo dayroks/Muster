@@ -18,6 +18,7 @@ type OtherProfile = {
   instagram: string;
   avatarUrl: string;
   bannerUrl: string;
+  is_verified: boolean;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,7 +47,7 @@ function ViewInner() {
 
     supabase
       .from('profiles')
-      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url')
+      .select('username, handle, bio, telegram, youtube, instagram, avatar_url, banner_url, is_verified')
       .eq('id', id)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -62,6 +63,7 @@ function ViewInner() {
             instagram: data.instagram ?? '',
             avatarUrl: data.avatar_url ?? '',
             bannerUrl: data.banner_url ?? '',
+            is_verified: data.is_verified === true,
           });
         }
         setLoading(false);
@@ -107,8 +109,17 @@ function ViewInner() {
               </div>
 
               <div className="mt-3 text-center">
-                <h2 className="font-onest text-xl font-extrabold tracking-tight text-white">
+                <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
                   {profile.username || 'Player'}
+                  {profile.is_verified === true && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src="/galka.png"
+                      alt="Verified"
+                      title="Verified"
+                      className="h-6 w-6 shrink-0 object-contain"
+                    />
+                  )}
                 </h2>
                 {profile.handle && (
                   <p className="font-inter text-sm font-medium text-zinc-500">
@@ -175,4 +186,4 @@ export default function ViewProfilePage() {
       <ViewInner />
     </Suspense>
   );
-  }
+                }
