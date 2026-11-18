@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Search,
   SlidersHorizontal,
@@ -51,62 +51,67 @@ export default function Home() {
     text: string;
   } | null>(null);
 
-  // Завантаження гравців, які шукають гру
+  // Завантаження всіх профілів, які мають гру або шукають гру
+  const loadPlayers = useCallback(async () => {
+    if (!user?.id) return;
+
+    setLoading(true);
+    setFailed(false);
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, handle, avatar_url, game, status')
+      .or('game.not.is.null,status.eq.Looking for game');
+
+    if (error) {
+      console.error('Supabase players load error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+
+      setFailed(true);
+      setPlayers([]);
+      setLoading(false);
+      return;
+    }
+
+    // Залишаємо профілі, у яких є назва гри
+    // АБО статус Looking for game.
+    // Поточного користувача НЕ виключаємо.
+    const validProfiles = ((data as ProfileRow[]) ?? []).filter(
+      (profile) =>
+        (profile.game ?? '').trim() !== '' ||
+        profile.status === 'Looking for game'
+    );
+
+    setPlayers(
+      validProfiles.map((profile) => ({
+        id: profile.id,
+        nickname: profile.username ?? 'Player',
+        handle: profile.handle ?? '',
+        avatarUrl: profile.avatar_url ?? '',
+        game: profile.game?.trim() ?? '',
+        status: profile.status ?? '',
+      }))
+    );
+
+    setLoading(false);
+  }, [user?.id]);
+
+  // Перше завантаження та повторне завантаження при зміні користувача
   useEffect(() => {
     if (!user?.id) return;
 
-    let active = true;
-
-    const loadPlayers = async () => {
-      setLoading(true);
-      setFailed(false);
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, handle, avatar_url, game, status')
-        .neq('id', user.id)
-        .not('game', 'is', null)
-        .neq('game', '')
-        .eq('status', 'Looking for game');
-
-      if (!active) return;
-
-      if (error) {
-        console.error('Supabase players load error:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-
-        setFailed(true);
-        setPlayers([]);
-      } else {
-        setPlayers(
-          ((data as ProfileRow[]) ?? []).map((profile) => ({
-            id: profile.id,
-            nickname: profile.username ?? 'Player',
-            handle: profile.handle ?? '',
-            avatarUrl: profile.avatar_url ?? '',
-            game: profile.game?.trim() ?? '',
-            status: profile.status ?? '',
-          }))
-        );
-      }
-
-      setLoading(false);
-    };
-
     loadPlayers();
-
-    return () => {
-      active = false;
-    };
-  }, [user]);
+  }, [user?.id, loadPlayers]);
 
   // Збереження вибраної гри
-  const handleSelectGame = async (gameName: string) => {
-    if (!user?.id || savingGame || !gameName.trim()) return;
+  const handleSelectGame = async (gameName: string): Promise<boolean> => {
+    if (!user?.id || savingGame || !gameName.trim()) {
+      return false;
+    }
 
     setSavingGame(true);
     setToast(null);
@@ -136,28 +141,24 @@ export default function Home() {
         text: `Save failed: ${error.message}`,
       });
 
-      return;
+      return false;
     }
 
     if (!data) {
-      console.error(
-        'Profile was not updated. Check profile ID and RLS policies.'
-      );
-
       setToast({
         type: 'error',
         text: 'Profile not found or update permission denied.',
       });
 
-      return;
+      return false;
     }
-
-    setShowRoleModal(false);
 
     setToast({
       type: 'success',
       text: `You are now looking for a game in ${gameName}!`,
     });
+
+    return true;
   };
 
   // Ігри для фільтра
@@ -377,9 +378,10 @@ export default function Home() {
         user={user}
         onClose={() => setShowRoleModal(false)}
         onSelectGame={handleSelectGame}
+        onSaved={loadPlayers}
       />
 
-      {/* Повідомлення */}
+      {/* Toast */}
       {toast && (
         <div
           className={`fixed bottom-24 left-1/2 z-[110] flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-xl border bg-zinc-900 px-4 py-3 font-inter text-sm font-bold shadow-xl ${
