@@ -706,4 +706,4 @@ export default function MiniAppsPanel({ user }: { user: User }) {
       )}
     </>
   );
-    }
+}
