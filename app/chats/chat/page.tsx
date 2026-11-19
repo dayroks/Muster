@@ -109,6 +109,8 @@ function ChatInner() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const idsValid = UUID_RE.test(myId) && UUID_RE.test(peerId) && myId !== peerId;
+
   // На ПК одразу ставимо курсор у поле вводу (на телефоні не чіпаємо, щоб не вискакувала клавіатура)
   useEffect(() => {
     if (loading || !idsValid) return;
@@ -117,8 +119,6 @@ function ChatInner() {
     }
   }, [loading, idsValid, peerId]);
   const didInitialScroll = useRef(false);
-
-  const idsValid = UUID_RE.test(myId) && UUID_RE.test(peerId) && myId !== peerId;
 
   // Список діалогів для desktop sidebar (ті самі повідомлення Supabase)
   useEffect(() => {
