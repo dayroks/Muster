@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -163,15 +162,6 @@ body { background: #080d12; }
 .desktop-chat-peer > div:last-child { min-width:0;display:flex;flex-direction:column;gap:4px; }
 .desktop-chat-peer b { color:#edf5fa;font-size:13px; }
 .desktop-chat-peer small { max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8192a2;font-size:12px; }
-.desktop-chat-conversation { position:relative;display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;padding:28px clamp(28px,5vw,88px) 140px; }
-.desktop-chat-conversation > main { width:100%;max-width:none;flex:1;overflow:auto;padding:28px clamp(28px,5vw,88px) 130px; }
-.desktop-chat-conversation > main > div.flex.flex-col { max-width:1000px;margin:0 auto; }
-.desktop-chat-conversation > main > div.flex > div > div { max-width:min(72%,680px);padding:13px 17px;border:1px solid rgba(255,255,255,.055); }
-.desktop-chat-conversation > main > div.flex > div > div.bg-green-500 { background:linear-gradient(145deg,#38e77e,#20bd62);border-color:rgba(155,255,190,.28);box-shadow:0 8px 24px rgba(20,180,90,.12); }
-.desktop-chat-conversation > main > div.flex > div > div.bg-zinc-800 { background:rgba(47,62,75,.78); }
-.desktop-chat-page .fixed.inset-x-0 { position:absolute;left:0;right:0;bottom:112px!important;border:0;background:linear-gradient(180deg,transparent,rgba(8,14,20,.96) 24%);backdrop-filter:none;padding-top:22px; }
-.desktop-chat-page .fixed.inset-x-0 > div { max-width:1000px;padding:12px 28px 22px; }
-.desktop-chat-page .fixed.inset-x-0 input { min-height:52px;background:rgba(30,44,56,.84);border-color:rgba(180,215,235,.15); }
 
 /* Profile and profile editor desktop composition */
 .profile-main { width:min(100% - 88px,1320px);padding-bottom:150px; }
@@ -201,8 +191,6 @@ body { background: #080d12; }
   .desktop-chat-welcome,.desktop-chat-sidebar { display:none; }
   .desktop-chat-workspace { display:block;height:auto;min-height:0;margin-top:0; }
   .desktop-chat-conversation { min-height:calc(100dvh - 230px);border-radius:0;border:0;background:transparent;box-shadow:none;padding:0;overflow:visible; }
-  .desktop-chat-conversation > main { padding:24px 16px 130px; }
-  .desktop-chat-page .fixed.inset-x-0 { position:fixed;bottom:calc(7rem + env(safe-area-inset-bottom))!important; }
   /* місце під поле вводу + нижнє меню, щоб останні повідомлення не ховались під ними */
   .desktop-chat-page { padding-bottom:calc(14.5rem + env(safe-area-inset-bottom)); }
   .other-profile-main { width:100%;padding:0 0 120px; }
@@ -262,7 +250,6 @@ body { background: #080d12; }
 }
 .muster-glass-nav__item.is-active::before { background: linear-gradient(145deg, rgba(210,245,222,.08), transparent 58%); }
 
-```css
 /* Profile banners — fill the entire container */
 .profile-view > .profile-banner,
 .other-profile-banner {
@@ -380,6 +367,190 @@ img[src="/galka.png"], img[src="/sticker-creator.png"] { animation: m-badge-pop 
 /* Поля вводу */
 input, textarea, select { transition: border-color .2s ease, box-shadow .25s ease, background-color .2s ease; }
 input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 3px rgba(34, 197, 94, .16); }
+
+/* =====================================================================
+   v5 — оптимізація під ПК (бічне меню, сітка, месенджер) + нові анімації
+   ===================================================================== */
+:root { --sidebar-w: 236px; --sidebar-gap: 20px; }
+
+/* ---------- Спільне: ковзна підсвітка активного пункту меню ---------- */
+.muster-glass-nav { --item-h: 66px; }
+.muster-glass-nav__inner { position: relative; }
+.muster-glass-nav__pill {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
+  height: var(--item-h); width: calc((100% - 15px) / 4); border-radius: 22px;
+  border: 1px solid rgba(71, 220, 123, .26);
+  background: linear-gradient(145deg, rgba(35, 150, 83, .30), rgba(13, 65, 40, .26));
+  box-shadow: inset 0 1px 0 rgba(211, 255, 226, .14), 0 0 24px rgba(31, 175, 91, .12);
+  transform: translateX(calc(var(--idx, 0) * (100% + 5px)));
+  transition: transform .55s cubic-bezier(.34, 1.32, .64, 1);
+}
+.muster-glass-nav__item { z-index: 1; }
+.muster-glass-nav__item.is-active { background: none; border: 0; box-shadow: none; }
+.muster-glass-nav__item.is-active::before { display: none; }
+.muster-nav-brand, .muster-page-title { display: none; }
+
+/* ---------- Скелетони завантаження ---------- */
+@keyframes m-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skeleton { display: block; border-radius: 10px; background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.11) 50%, rgba(255,255,255,.04) 75%); background-size: 200% 100%; animation: m-shimmer 1.6s linear infinite; }
+.skeleton-card { display: flex; align-items: center; gap: 14px; padding: 16px; border: 1px solid #27272a; border-radius: 12px; background: #18181b; animation: m-fade-up .5s var(--ease-out) backwards; }
+.skeleton--avatar { width: 48px; height: 48px; flex: none; border-radius: 50%; }
+.skeleton-card__lines { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.skeleton--line { height: 12px; }
+.players-grid { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---------- Нові анімації ---------- */
+@keyframes m-drift { from { transform: translate3d(-3%, -2%, 0) scale(1); } to { transform: translate3d(4%, 3%, 0) scale(1.08); } }
+@keyframes m-msg-in-right { from { opacity: 0; transform: translateX(18px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes m-msg-in-left { from { opacity: 0; transform: translateX(-18px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes m-banner-zoom { from { transform: scale(1.08); opacity: .6; } to { transform: scale(1); opacity: 1; } }
+@keyframes m-title-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+@keyframes m-slide-right { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+
+/* Живий фон: повільно «дрейфують» зелене та синє світіння */
+.muster-app-shell { position: relative; isolation: isolate; }
+.muster-app-shell::before {
+  content: ""; position: fixed; inset: -20%; z-index: -1; pointer-events: none; will-change: transform;
+  background:
+    radial-gradient(38% 38% at 22% 28%, rgba(34, 197, 94, .11), transparent 70%),
+    radial-gradient(34% 34% at 78% 72%, rgba(56, 130, 200, .09), transparent 70%);
+  animation: m-drift 26s ease-in-out infinite alternate;
+}
+
+/* Повідомлення «в’їжджають» з боку відправника */
+.msg-in.justify-end { animation-name: m-msg-in-right; }
+.msg-in.justify-start { animation-name: m-msg-in-left; }
+
+/* Профіль: банер плавно наближається, блоки з’являються по черзі */
+.profile-view > *, .other-profile-main > *, .other-profile-content > * { animation: m-fade-up .6s var(--ease-out) backwards; }
+.profile-view > *:nth-child(2), .other-profile-main > *:nth-child(2) { animation-delay: .08s; }
+.profile-view > *:nth-child(3), .other-profile-main > *:nth-child(3) { animation-delay: .16s; }
+.profile-view > *:nth-child(4) { animation-delay: .24s; }
+.profile-view .profile-banner img, .other-profile-banner img { animation: m-banner-zoom 1.1s var(--ease-out) backwards; }
+
+/* Список чатів і бокова панель: каскад */
+.desktop-chats-list ul > li, .desktop-chat-sidebar__items > * { animation: m-slide-right .45s var(--ease-out) backwards; }
+.desktop-chats-list ul > li:nth-child(1) { animation-delay:0.04s; }
+.desktop-chats-list ul > li:nth-child(2) { animation-delay:0.09s; }
+.desktop-chats-list ul > li:nth-child(3) { animation-delay:0.14s; }
+.desktop-chats-list ul > li:nth-child(4) { animation-delay:0.19s; }
+.desktop-chats-list ul > li:nth-child(5) { animation-delay:0.24s; }
+.desktop-chats-list ul > li:nth-child(6) { animation-delay:0.29s; }
+.desktop-chats-list ul > li:nth-child(7) { animation-delay:0.34s; }
+.desktop-chats-list ul > li:nth-child(8) { animation-delay:0.39s; }
+.desktop-chats-list ul > li:nth-child(n+9) { animation-delay:.45s; }
+
+.desktop-chat-sidebar__items > *:nth-child(1) { animation-delay:0.04s; }
+.desktop-chat-sidebar__items > *:nth-child(2) { animation-delay:0.09s; }
+.desktop-chat-sidebar__items > *:nth-child(3) { animation-delay:0.14s; }
+.desktop-chat-sidebar__items > *:nth-child(4) { animation-delay:0.19s; }
+.desktop-chat-sidebar__items > *:nth-child(5) { animation-delay:0.24s; }
+.desktop-chat-sidebar__items > *:nth-child(6) { animation-delay:0.29s; }
+.desktop-chat-sidebar__items > *:nth-child(7) { animation-delay:0.34s; }
+.desktop-chat-sidebar__items > *:nth-child(8) { animation-delay:0.39s; }
+.desktop-chat-sidebar__items > *:nth-child(n+9) { animation-delay:.45s; }
+
+
+/* Кнопки та картки: м’яке світіння, акуратний фокус з клавіатури */
+button.bg-green-500:not(:disabled):hover { box-shadow: 0 0 24px rgba(34, 197, 94, .38); }
+.player-card:hover { border-color: rgba(34, 197, 94, .35); }
+.player-card a[aria-label^="Open"] { transition: scale .3s var(--ease-spring); }
+@media (hover: hover) { .player-card:hover a[aria-label^="Open"] { scale: 1.08; } }
+:focus-visible { outline: 2px solid rgba(74, 222, 128, .7); outline-offset: 2px; border-radius: 10px; }
+input:focus-visible, textarea:focus-visible { outline: none; }
+
+/* Заголовок сторінки в шапці (ПК) */
+.muster-page-title h2 { font: 800 22px var(--font-onest), sans-serif; color: #f8fafc; letter-spacing: -.01em; animation: m-title-in .45s var(--ease-out) backwards; }
+.muster-page-title p { margin-top: 2px; font-size: 13px; font-weight: 500; color: #7d8fa1; animation: m-title-in .45s var(--ease-out) .06s backwards; }
+
+/* ---------- Чат: спільна структура (панель = повідомлення + поле вводу) ---------- */
+.desktop-chat-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid rgba(174, 204, 222, .12); border-radius: 25px; background: linear-gradient(155deg, rgba(18, 29, 39, .91), rgba(9, 16, 23, .94)); box-shadow: 0 18px 55px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .035); overflow: hidden; }
+.desktop-chat-conversation { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 28px clamp(24px, 4vw, 64px) 12px; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.desktop-chat-conversation > p { margin: auto; }
+.desktop-chat-conversation > div.flex.flex-col { flex: none; width: 100%; max-width: 900px; margin: auto auto 0; }
+.desktop-chat-conversation .msg-in > div { max-width: min(72%, 620px); padding: 11px 16px; border: 1px solid rgba(255, 255, 255, .055); }
+.desktop-chat-conversation .msg-in > div.bg-green-500 { background: linear-gradient(145deg, #38e77e, #20bd62); border-color: rgba(155, 255, 190, .28); box-shadow: 0 8px 24px rgba(20, 180, 90, .12); }
+.desktop-chat-conversation .msg-in > div.bg-zinc-800 { background: rgba(47, 62, 75, .78); }
+.chat-bottom-anchor { flex: none; height: 1px; scroll-margin-bottom: 16px; }
+.chat-composer { flex: none; border-top: 1px solid rgba(174, 204, 222, .10); background: rgba(8, 14, 20, .55); }
+.chat-composer__inner { width: 100%; max-width: 900px; margin: 0 auto; padding: 14px clamp(24px, 4vw, 64px) 18px; box-sizing: content-box; }
+.chat-composer input { min-height: 50px; background: rgba(30, 44, 56, .84); border-color: rgba(180, 215, 235, .15); }
+.chat-toast { transform: translateX(-50%); bottom: calc(15.5rem + env(safe-area-inset-bottom)); }
+
+/* ---------- Планшет / телефон (до 1023px): нижнє меню, чат в один стовпець ---------- */
+@media (max-width: 1023px) {
+  .desktop-chat-page { height: auto; min-height: 100dvh; padding: 0 0 calc(14.5rem + env(safe-area-inset-bottom)); overflow: visible; display: block; }
+  .desktop-chat-page > header > div, .desktop-chat-workspace { width: calc(100% - 32px); }
+  .desktop-chat-workspace { display: block; height: auto; min-height: 0; margin: 0 auto; }
+  .desktop-chat-sidebar { display: none; }
+  .desktop-chat-panel { display: block; min-height: calc(100dvh - 230px); border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+  .desktop-chat-conversation { display: block; overflow: visible; padding: 20px 0 0; }
+  .desktop-chat-conversation > div.flex.flex-col { margin: 0 auto; }
+  .desktop-chat-conversation .msg-in > div { max-width: 82%; padding: 8px 14px; }
+  .chat-composer { position: fixed; left: 0; right: 0; z-index: 40; bottom: calc(7rem + env(safe-area-inset-bottom)); border-top: 1px solid #27272a; background: rgba(9, 9, 11, .9); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .chat-composer__inner { box-sizing: border-box; max-width: 72rem; padding: 12px 16px; }
+  .chat-composer input { min-height: 0; }
+}
+@media (max-width: 700px) { .muster-glass-nav { --item-h: 58px; } }
+
+/* ---------- Компʼютер (від 1024px): бічне меню, сітка, просторий месенджер ---------- */
+@media (min-width: 1024px) {
+  .muster-app-shell { padding-left: calc(var(--sidebar-w) + var(--sidebar-gap) * 2); padding-bottom: 48px; }
+
+  /* Меню → фіксована ліва панель */
+  .muster-glass-nav {
+    --item-h: 52px;
+    left: var(--sidebar-gap); top: var(--sidebar-gap); bottom: var(--sidebar-gap);
+    width: var(--sidebar-w); transform: none; padding: 16px 14px; border-radius: 30px;
+    display: flex; flex-direction: column;
+  }
+  .muster-nav-brand { display: flex; align-items: center; gap: 12px; padding: 6px 8px 18px; margin-bottom: 12px; border-bottom: 1px solid rgba(173, 199, 214, .12); text-decoration: none; }
+  .muster-nav-brand__mark { width: 44px; height: 44px; flex: none; display: grid; place-items: center; overflow: hidden; border-radius: 14px; border: 1px solid rgba(69, 255, 128, .25); background: linear-gradient(145deg, rgba(34, 197, 94, .18), rgba(4, 20, 15, .72)); }
+  .muster-nav-brand__mark img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+  .muster-nav-brand__text b { display: block; font: 800 19px var(--font-onest), sans-serif; color: #fff; }
+  .muster-nav-brand__text small { display: block; margin-top: 2px; font-size: 11px; color: #6f8396; }
+  .muster-glass-nav__inner { display: flex; flex-direction: column; gap: 6px; }
+  .muster-glass-nav__pill { width: 100%; border-radius: 16px; transform: translateY(calc(var(--idx, 0) * (100% + 6px))); }
+  .muster-glass-nav__item { flex-direction: row; justify-content: flex-start; gap: 14px; min-height: var(--item-h); padding: 0 18px; border-radius: 16px; font-size: 14px; }
+  .muster-glass-nav__item:hover { translate: 3px 0; }
+  .muster-glass-nav__item:active { scale: .97; }
+
+  /* Шапка: назва сторінки замість бренду */
+  .muster-brand { display: none; }
+  .muster-page-title { display: block; }
+  .muster-header { background: rgba(8, 14, 19, .6); }
+  .muster-header__inner { width: min(100% - 64px, 1560px); min-height: 78px; }
+  .muster-online { padding: 8px 14px; border: 1px solid rgba(148, 163, 184, .14); border-radius: 999px; background: rgba(255, 255, 255, .03); }
+  .muster-page-content { width: min(100% - 64px, 1560px); padding-top: 30px; }
+
+  /* Головна: панель пошуку в один рядок, картки сіткою */
+  .explore-toolbar { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+  .explore-toolbar > div { order: 1; flex: 1; max-width: 780px; margin: 0; }
+  .explore-toolbar > button { order: 2; width: auto; height: 50px; margin: 0; padding: 0 26px; white-space: nowrap; }
+  .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 14px; }
+  .player-card { padding: 18px; }
+
+  /* Список чатів */
+  .desktop-chats-layout { min-height: calc(100dvh - 190px); }
+  .desktop-chats-list { max-height: calc(100dvh - 160px); }
+  .desktop-chats-list ul { max-height: calc(100dvh - 320px); }
+
+  /* Профілі */
+  .profile-main, .other-profile-main { padding-bottom: 40px; }
+
+  /* Месенджер на всю висоту екрана: сторінка не скролиться, скролиться лише історія */
+  .desktop-chat-page { position: relative; height: 100dvh; min-height: 0; padding: 0 0 0 calc(var(--sidebar-w) + var(--sidebar-gap) * 2); overflow: hidden; display: flex; flex-direction: column; }
+  .desktop-chat-page > header { flex: none; }
+  .desktop-chat-page > header > div { width: min(100% - 64px, 1560px); padding: 16px 0; }
+  .desktop-chat-workspace { flex: 1; min-height: 0; height: auto; width: min(100% - 64px, 1560px); margin: 20px auto 24px; grid-template-columns: 320px minmax(0, 1fr); }
+  .desktop-chat-sidebar { min-height: 0; }
+  .chat-toast { left: calc(50% + (var(--sidebar-w) + var(--sidebar-gap) * 2) / 2); bottom: 112px; }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .desktop-chat-workspace { grid-template-columns: 280px minmax(0, 1fr); }
+  .players-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
 
 /* Повага до налаштувань "зменшити рух" */
 @media (prefers-reduced-motion: reduce) {
