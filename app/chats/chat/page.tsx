@@ -107,6 +107,15 @@ function ChatInner() {
   };
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // На ПК одразу ставимо курсор у поле вводу (на телефоні не чіпаємо, щоб не вискакувала клавіатура)
+  useEffect(() => {
+    if (loading || !idsValid) return;
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+  }, [loading, idsValid, peerId]);
   const didInitialScroll = useRef(false);
 
   const idsValid = UUID_RE.test(myId) && UUID_RE.test(peerId) && myId !== peerId;
@@ -325,6 +334,7 @@ function ChatInner() {
           {!chatPeers.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No conversations yet</p>}
         </div>
       </aside>
+      <section className="desktop-chat-panel">
       <main className="desktop-chat-conversation">
         {loading ? (
           <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
@@ -365,21 +375,18 @@ function ChatInner() {
             })}
           </div>
         )}
-        <div ref={bottomRef} className="scroll-mb-60" />
+        <div ref={bottomRef} className="chat-bottom-anchor" />
       </main>
-      </div>
 
       {idsValid && (
-        <div
-          className="fixed inset-x-0 z-40 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur-md"
-          style={{ bottom: 'calc(7rem + env(safe-area-inset-bottom))' }}
-        >
-          <div className="mx-auto w-full max-w-6xl px-6 py-3">
+        <div className="chat-composer">
+          <div className="chat-composer__inner">
             {error && (
               <p className="mb-2 font-inter text-xs font-medium text-red-400">{error}</p>
             )}
             <div className="flex items-center gap-2">
               <input
+                ref={inputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
@@ -406,10 +413,12 @@ function ChatInner() {
         </div>
       )}
 
+      </section>
+      </div>
+
       {mentionToast && (
         <div
-          className="toast-in fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-red-500/30 bg-zinc-900 px-4 py-3 font-inter font-bold text-red-400"
-          style={{ bottom: 'calc(15.5rem + env(safe-area-inset-bottom))' }}
+          className="chat-toast toast-in fixed left-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-xl border border-red-500/30 bg-zinc-900 px-4 py-3 font-inter font-bold text-red-400"
         >
           <AlertCircle className="h-5 w-5" />
           {mentionToast}
