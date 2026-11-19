@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -259,6 +258,7 @@ export default function Home() {
 
   return (
     <PageShell>
+      <div className="explore-toolbar">
       {/* Set a role */}
       <button
         onClick={() => {
@@ -305,6 +305,8 @@ export default function Home() {
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-green-500" />
           )}
         </button>
+      </div>
+
       </div>
 
       {/* Фільтр за грою */}
@@ -385,9 +387,17 @@ export default function Home() {
 
       {/* Список гравців */}
       {loading ? (
-        <p className="py-16 text-center font-inter font-medium text-zinc-500">
-          Loading...
-        </p>
+        <div className="players-grid" aria-busy="true" aria-label="Loading players">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
+              <span className="skeleton skeleton--avatar" />
+              <span className="skeleton-card__lines">
+                <span className="skeleton skeleton--line" style={{ width: '55%' }} />
+                <span className="skeleton skeleton--line" style={{ width: '35%' }} />
+              </span>
+            </div>
+          ))}
+        </div>
       ) : failed ? (
         <p className="py-16 text-center font-inter font-medium text-zinc-500">
           Couldn't load players. Try again later.
@@ -405,7 +415,7 @@ export default function Home() {
           </p>
         </div>
       ) : (
-        <div className="stagger flex flex-col gap-3">
+        <div className="stagger players-grid flex flex-col gap-3">
           {filtered.map((player) => (
             <PlayerCard key={player.id} player={player} />
           ))}
