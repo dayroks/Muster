@@ -358,7 +358,7 @@ export default function ProfilePage() {
   const labelClass = 'font-inter text-sm font-medium text-zinc-400';
 
   return (
-    <div className="min-h-screen bg-zinc-950 pb-20">
+    <div className="profile-page-shell min-h-screen bg-zinc-950 pb-20">
       {isEditing ? (
         <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-md items-center px-4 py-4">
@@ -375,7 +375,7 @@ export default function ProfilePage() {
         <Header />
       )}
 
-      <main>
+      <main className={isEditing ? '' : 'profile-main'}>
         {isEditing ? (
           /* ---------- РЕЖИМ РЕДАГУВАННЯ ---------- */
           <div className="profile-edit-layout">
@@ -568,94 +568,51 @@ export default function ProfilePage() {
           </div>
         ) : (
           /* ---------- РЕЖИМ ПЕРЕГЛЯДУ ---------- */
-          <div className="page-enter relative w-full">
-            <Banner url={profile.bannerUrl} />
+          <div className="page-enter profile-view">
+            <div className="profile-banner">
+              <Banner url={profile.bannerUrl} />
+            </div>
 
-            <div className="relative -mt-12 flex flex-col items-center px-4">
-              <div className="relative h-24 w-24">
-                <AvatarCircle url={profile.avatarUrl} name={profile.username} />
+            <div className="profile-details">
+              <div className="profile-identity">
+                <div className="profile-avatar-wrap">
+                  <AvatarCircle url={profile.avatarUrl} name={profile.username} />
+                </div>
+
+                <div className="profile-name">
+                  <h2 className="flex items-center gap-1 font-onest text-xl font-extrabold tracking-tight text-white">
+                    {profile.is_sticker_creator === true && <StickerCreatorBadge className="h-6 w-6" />}
+                    {profile.username || 'Player'}
+                    {profile.is_verified === true && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src="/galka.png" alt="Verified" title="Verified" className="h-6 w-6 shrink-0 object-contain" />
+                    )}
+                    {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
+                  </h2>
+                  <p className="font-inter text-sm font-medium text-zinc-500">
+                    {profile.handle ? `@${profile.handle}` : 'No username yet'}
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-3 text-center">
-                <h2 className="flex items-center justify-center gap-0.5 font-onest text-xl font-extrabold tracking-tight text-white">
-                  {profile.is_sticker_creator === true && <StickerCreatorBadge className="h-6 w-6" />}
-                  {profile.username || 'Player'}
-                  {profile.is_verified === true && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src="/galka.png"
-                      alt="Verified"
-                      title="Verified"
-                      className="h-6 w-6 shrink-0 object-contain"
-                    />
-                  )}
-                  {profile.is_mini_app_creator === true && <MiniAppCreatorBadge className="h-6 w-6" />}
-                </h2>
-                <p className="font-inter text-sm font-medium text-zinc-500">
-                  {profile.handle ? `@${profile.handle}` : 'No username yet'}
-                </p>
-              </div>
-
-              <div className="mt-5 flex w-full max-w-md flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
-                <InfoRow
-                  Icon={Info}
-                  color="text-zinc-400"
-                  label="about me"
-                  value={profile.bio || 'Nothing here yet'}
-                  renderMentions
-                />
+              <div className="profile-info-card flex flex-col gap-4">
+                <InfoRow Icon={Info} color="text-zinc-400" label="about me" value={profile.bio || 'Nothing here yet'} renderMentions />
                 {profile.is_sticker_creator === true && <StickerCreatorNote />}
                 {profile.is_mini_app_creator === true && <MiniAppCreatorNote />}
-                {profile.telegram && (
-                  <InfoRow
-                    Icon={Send}
-                    color="text-sky-400"
-                    label="Telegram"
-                    value={profile.telegram}
-                    href={normalizeLink('telegram', profile.telegram)}
-                  />
-                )}
-                {profile.youtube && (
-                  <InfoRow
-                    Icon={Youtube}
-                    color="text-red-500"
-                    label="YouTube"
-                    value={profile.youtube}
-                    href={normalizeLink('youtube', profile.youtube)}
-                  />
-                )}
-                {profile.instagram && (
-                  <InfoRow
-                    Icon={Instagram}
-                    color="text-pink-500"
-                    label="Instagram"
-                    value={profile.instagram}
-                    href={normalizeLink('instagram', profile.instagram)}
-                  />
-                )}
+                {profile.telegram && <InfoRow Icon={Send} color="text-sky-400" label="Telegram" value={profile.telegram} href={normalizeLink('telegram', profile.telegram)} />}
+                {profile.youtube && <InfoRow Icon={Youtube} color="text-red-500" label="YouTube" value={profile.youtube} href={normalizeLink('youtube', profile.youtube)} />}
+                {profile.instagram && <InfoRow Icon={Instagram} color="text-pink-500" label="Instagram" value={profile.instagram} href={normalizeLink('instagram', profile.instagram)} />}
               </div>
 
-              <div className="mt-4 grid w-full max-w-md grid-cols-3 gap-2 pb-6">
-                <button
-                  onClick={startEditing}
-                  className="flex flex-col items-center gap-1 rounded-xl bg-green-500 py-3 font-inter text-xs font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400"
-                >
-                  <Pencil className="h-5 w-5" />
-                  Edit
+              <div className="profile-actions">
+                <button onClick={startEditing} className="flex flex-col items-center gap-1 rounded-xl bg-green-500 py-3 font-inter text-xs font-bold text-black shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-colors hover:bg-green-400">
+                  <Pencil className="h-5 w-5" /> Edit
                 </button>
-                <Link
-                  href="/settings"
-                  className="flex flex-col items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 py-3 font-inter text-xs font-bold text-zinc-300 transition-all hover:border-zinc-700 hover:text-white"
-                >
-                  <Settings className="h-5 w-5" />
-                  Settings
+                <Link href="/settings" className="flex flex-col items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 py-3 font-inter text-xs font-bold text-zinc-300 transition-all hover:border-zinc-700 hover:text-white">
+                  <Settings className="h-5 w-5" /> Settings
                 </Link>
-                <button
-                  onClick={handleShare}
-                  className="flex flex-col items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 py-3 font-inter text-xs font-bold text-zinc-300 transition-all hover:border-zinc-700 hover:text-white"
-                >
-                  <Share2 className="h-5 w-5" />
-                  Share
+                <button onClick={handleShare} className="flex flex-col items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 py-3 font-inter text-xs font-bold text-zinc-300 transition-all hover:border-zinc-700 hover:text-white">
+                  <Share2 className="h-5 w-5" /> Share
                 </button>
               </div>
             </div>
