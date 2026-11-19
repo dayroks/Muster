@@ -145,9 +145,7 @@ body { background: #080d12; }
 
 /* Full desktop messenger: conversations at left, message timeline at center */
 .desktop-chat-page { min-height:100dvh;padding-bottom:126px;background:radial-gradient(ellipse at 50% -25%,rgba(35,110,75,.13),transparent 50%),#080d12; }
-.desktop-chat-page > header { background:rgba(8,14,19,.78);border-color:rgba(174,204,222,.10); }
-.desktop-chat-page > header > div { max-width:none;width:min(100% - 88px,1720px);padding:18px 0; }
-.desktop-chat-workspace { width:min(100% - 88px,1720px);height:calc(100dvh - 230px);min-height:520px;margin:24px auto 0;display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px; }
+.desktop-chat-workspace { width:min(100% - 88px,1720px);height:calc(100dvh - 150px);min-height:520px;margin:24px auto 0;display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px; }
 .desktop-chat-sidebar,.desktop-chat-conversation { min-width:0;min-height:0;border:1px solid rgba(174,204,222,.12);border-radius:25px;background:linear-gradient(155deg,rgba(18,29,39,.91),rgba(9,16,23,.94));box-shadow:0 18px 55px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.035); }
 .desktop-chat-sidebar { display:flex;flex-direction:column;overflow:hidden; }
 .desktop-chat-sidebar__head { display:flex;align-items:center;justify-content:space-between;padding:22px 20px 16px;color:#f8fafc;font-size:19px;font-weight:800; }
@@ -463,6 +461,13 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 .muster-page-title h2 { font: 800 22px var(--font-onest), sans-serif; color: #f8fafc; letter-spacing: -.01em; animation: m-title-in .45s var(--ease-out) backwards; }
 .muster-page-title p { margin-top: 2px; font-size: 13px; font-weight: 500; color: #7d8fa1; animation: m-title-in .45s var(--ease-out) .06s backwards; }
 
+/* Заголовок співрозмовника всередині правої панелі чату */
+.desktop-chat-peer-header { flex:none;display:flex;align-items:center;gap:14px;min-height:76px;padding:12px 28px;border-bottom:1px solid rgba(174,204,222,.10);text-decoration:none;background:rgba(7,13,19,.22);transition:background .18s ease; }
+.desktop-chat-peer-header:hover { background:rgba(255,255,255,.025); }
+.desktop-chat-peer-header__avatar { width:48px;height:48px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#27c96b;color:#041109;font:800 18px var(--font-onest),sans-serif; }
+.desktop-chat-peer-header__avatar img { width:100%;height:100%;object-fit:cover; }
+.desktop-chat-sidebar__search input { width:100%;min-width:0;border:0;outline:0;background:transparent;color:#e5edf4;font:500 13px var(--font-inter),sans-serif; }
+.desktop-chat-sidebar__search input::placeholder { color:#8294a5; }
 /* ---------- Чат: спільна структура (панель = повідомлення + поле вводу) ---------- */
 .desktop-chat-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid rgba(174, 204, 222, .12); border-radius: 25px; background: linear-gradient(155deg, rgba(18, 29, 39, .91), rgba(9, 16, 23, .94)); box-shadow: 0 18px 55px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .035); overflow: hidden; }
 .desktop-chat-conversation { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 28px clamp(24px, 4vw, 64px) 12px; border: 0; border-radius: 0; background: none; box-shadow: none; }
@@ -480,10 +485,12 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 /* ---------- Планшет / телефон (до 1023px): нижнє меню, чат в один стовпець ---------- */
 @media (max-width: 1023px) {
   .desktop-chat-page { height: auto; min-height: 100dvh; padding: 0 0 calc(14.5rem + env(safe-area-inset-bottom)); overflow: visible; display: block; }
-  .desktop-chat-page > header > div, .desktop-chat-workspace { width: calc(100% - 32px); }
+  .desktop-chat-workspace { width: calc(100% - 32px); }
   .desktop-chat-workspace { display: block; height: auto; min-height: 0; margin: 0 auto; }
   .desktop-chat-sidebar { display: none; }
-  .desktop-chat-panel { display: block; min-height: calc(100dvh - 230px); border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+  .desktop-chat-panel { display: flex; flex-direction: column; min-height: calc(100dvh - 160px); border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
+  .desktop-chat-peer-header { min-height:68px;padding:10px 4px; }
+  .desktop-chat-peer-header__avatar { width:42px;height:42px; }
   .desktop-chat-conversation { display: block; overflow: visible; padding: 20px 0 0; }
   .desktop-chat-conversation > div.flex.flex-col { margin: 0 auto; }
   .desktop-chat-conversation .msg-in > div { max-width: 82%; padding: 8px 14px; }
@@ -540,8 +547,6 @@ input:focus-visible, textarea:focus-visible { outline: none; }
 
   /* Месенджер на всю висоту екрана: сторінка не скролиться, скролиться лише історія */
   .desktop-chat-page { position: relative; height: 100dvh; min-height: 0; padding: 0 0 0 calc(var(--sidebar-w) + var(--sidebar-gap) * 2); overflow: hidden; display: flex; flex-direction: column; }
-  .desktop-chat-page > header { flex: none; }
-  .desktop-chat-page > header > div { width: min(100% - 64px, 1560px); padding: 16px 0; }
   .desktop-chat-workspace { flex: 1; min-height: 0; height: auto; width: min(100% - 64px, 1560px); margin: 20px auto 24px; grid-template-columns: 320px minmax(0, 1fr); }
   .desktop-chat-sidebar { min-height: 0; }
   .chat-toast { left: calc(50% + (var(--sidebar-w) + var(--sidebar-gap) * 2) / 2); bottom: 112px; }
@@ -557,38 +562,3 @@ input:focus-visible, textarea:focus-visible { outline: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
                                                                                                                                                                                                                                                    }
-
-
-/* Profile page desktop layout */
-.profile-page-shell { min-height:100dvh; background:radial-gradient(ellipse at 55% -20%,rgba(35,110,75,.12),transparent 48%),#080d12; }
-.profile-main { width:min(100% - 64px, 1320px); margin:0 auto; padding:28px 0 60px; }
-.profile-view { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; }
-.profile-view > .profile-banner { height:clamp(210px,22vw,320px); overflow:hidden; border-radius:24px; border:1px solid rgba(180,215,230,.12); background:#111b23; }
-.profile-view > .profile-banner > img,
-.profile-view > .profile-banner > div { width:100%; height:100% !important; object-fit:cover; }
-.profile-view > .profile-details { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr); gap:22px; align-items:start; }
-.profile-view .profile-identity { grid-column:1 / -1; display:flex; align-items:center; gap:20px; margin-top:-76px; padding:0 30px; position:relative; z-index:1; text-align:left; }
-.profile-view .profile-identity .profile-avatar-wrap { flex:none; }
-.profile-view .profile-identity .profile-name { padding-top:58px; text-align:left; }
-.profile-view .profile-identity .profile-avatar-wrap > div { width:112px; height:112px; }
-.profile-view .profile-info-card { min-width:0; margin:0; padding:26px; border:1px solid rgba(180,215,230,.12); border-radius:22px; background:linear-gradient(145deg,rgba(20,31,41,.94),rgba(10,17,24,.96)); box-shadow:0 18px 50px rgba(0,0,0,.2); }
-.profile-view .profile-actions { display:flex; gap:12px; margin:0; align-self:stretch; }
-.profile-view .profile-actions > * { flex:1; min-height:76px; flex-direction:row; justify-content:center; gap:9px; border-radius:17px; font-size:13px; text-decoration:none; }
-@media (min-width:1024px) {
-  .profile-page-shell { padding-left:calc(var(--sidebar-w) + var(--sidebar-gap) * 2); }
-  .profile-main { width:min(100% - 64px, 1320px); padding-top:28px; }
-}
-@media (max-width:700px) {
-  .profile-page-shell { padding-left:0; }
-  .profile-main { width:100%; padding:0 0 110px; }
-  .profile-view { display:block; }
-  .profile-view > .profile-banner { height:128px; border-radius:0; }
-  .profile-view > .profile-details { display:block; }
-  .profile-view .profile-identity { display:block; margin-top:-48px; padding:0 16px; text-align:center; }
-  .profile-view .profile-identity .profile-avatar-wrap { width:96px; height:96px; margin:0 auto; }
-  .profile-view .profile-identity .profile-avatar-wrap > div { width:96px; height:96px; }
-  .profile-view .profile-identity .profile-name { padding-top:0; text-align:center; }
-  .profile-view .profile-info-card { margin:20px 16px 0; padding:16px; }
-  .profile-view .profile-actions { margin:16px; gap:8px; }
-  .profile-view .profile-actions > * { min-height:68px; flex-direction:column; gap:4px; font-size:11px; }
-}
