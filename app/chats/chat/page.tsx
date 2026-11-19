@@ -5,7 +5,7 @@ import { MiniAppCreatorBadge } from '@/components/MiniAppCreatorBadge';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Send, Search, MessageCircle, AlertCircle } from 'lucide-react';
+import { Send, Search, MessageCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRequireAuth } from '@/lib/useRequireAuth';
 import BottomNav from '@/components/BottomNav';
@@ -46,6 +46,7 @@ function ChatInner() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [chatSearch, setChatSearch] = useState('');
 
   const router = useRouter();
   const [mentionToast, setMentionToast] = useState('');
@@ -169,25 +170,33 @@ function ChatInner() {
       );
   }, [user, peerId]);
 
+  // Keep the opened conversation visible in the sidebar, including brand-new chats.
+  useEffect(() => {
+    if (!idsValid || !peerInfo) return;
+    setChatPeers((prev) => {
+      const existing = prev.find((peer) => peer.id === peerId);
+      const selected = {
+        id: peerId,
+        username: peerInfo.username || 'Player',
+        avatar_url: peerInfo.avatar_url,
+        lastText: existing?.lastText || '',
+      };
+      return [selected, ...prev.filter((peer) => peer.id !== peerId)];
+    });
+  }, [idsValid, peerId, peerInfo]);
+
   const addMessage = useCallback((msg: Message) => {
     setMessages((prev) => mergeMessages(prev, [msg]));
-  }, []);
-
-  // Keep the currently opened conversation visible in the desktop sidebar,
-  // even if the initial sidebar query returned before the history was loaded.
-  useEffect(() => {
-    if (!UUID_RE.test(peerId)) return;
-    const latest = messages[messages.length - 1];
+    const otherId = msg.sender_id === myId ? msg.receiver_id : msg.sender_id;
     setChatPeers((prev) => {
-      const current = {
-        id: peerId,
-        username: peerInfo?.username || prev.find((p) => p.id === peerId)?.username || 'Player',
-        avatar_url: peerInfo?.avatar_url ?? prev.find((p) => p.id === peerId)?.avatar_url ?? null,
-        lastText: latest?.content ?? prev.find((p) => p.id === peerId)?.lastText ?? '',
-      };
-      return [current, ...prev.filter((p) => p.id !== peerId)];
+      const existing = prev.find((peer) => peer.id === otherId);
+      if (!existing && otherId !== peerId) return prev;
+      const updated = existing
+        ? { ...existing, lastText: msg.content }
+        : { id: peerId, username: peerInfo?.username || 'Player', avatar_url: peerInfo?.avatar_url || null, lastText: msg.content };
+      return [updated, ...prev.filter((peer) => peer.id !== otherId)];
     });
-  }, [peerId, peerInfo, messages]);
+  }, [myId, peerId, peerInfo]);
 
   // Realtime-підписка
   useEffect(() => {
@@ -295,62 +304,42 @@ function ChatInner() {
 
   return (
     <div className="min-h-screen bg-zinc-950 desktop-chat-page">
-      <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-6 py-4">
-          <Link
-            href="/chats"
-            aria-label="Back"
-            className="text-zinc-300 transition-colors hover:text-white"
-          >
-            <ArrowLeft className="h-6 w-6" />
-          </Link>
-          <Link
-            href={`/profile/view?id=${peerId}`}
-            className="flex min-w-0 flex-1 items-center gap-3"
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-500">
-              {peerInfo?.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={peerInfo.avatar_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-onest text-base font-extrabold text-black">
-                  {(peerInfo?.username || '?').charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0">
-              <h1 className="flex min-w-0 items-center gap-0.5 font-onest text-lg font-extrabold leading-tight text-white">
-                {peerInfo?.is_sticker_creator && <StickerCreatorBadge className="h-5 w-5" />}
-                <span className="truncate">{peerInfo?.username || '...'}</span>
-                {peerInfo?.is_verified && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src="/galka.png" alt="Verified" title="Verified" className="h-5 w-5 shrink-0 object-contain" />
-                )}
-                {peerInfo?.is_mini_app_creator && <MiniAppCreatorBadge className="h-5 w-5" />}
-              </h1>
-              {peerInfo?.handle && (
-                <p className="truncate font-inter text-xs font-medium leading-tight text-zinc-500">
-                  @{peerInfo.handle}
-                </p>
-              )}
-            </div>
-          </Link>
-        </div>
-      </header>
-
       <div className="desktop-chat-workspace">
       <aside className="desktop-chat-sidebar">
         <div className="desktop-chat-sidebar__head"><strong>Messages</strong><span>{chatPeers.length}</span></div>
-        <div className="desktop-chat-sidebar__search"><Search className="h-4 w-4"/><span>Search conversations</span></div>
+        <label className="desktop-chat-sidebar__search">
+          <Search className="h-4 w-4" />
+          <input value={chatSearch} onChange={(e) => setChatSearch(e.target.value)} placeholder="Search conversations" aria-label="Search conversations" />
+        </label>
         <div className="desktop-chat-sidebar__items">
-          {chatPeers.map((peer) => <Link key={peer.id} href={`/chats/chat?id=${peer.id}`} className={`desktop-chat-peer ${peer.id === peerId ? 'is-current' : ''}`}>
+          {chatPeers.filter((peer) => peer.username.toLowerCase().includes(chatSearch.trim().toLowerCase())).map((peer) => <Link key={peer.id} href={`/chats/chat?id=${peer.id}`} className={`desktop-chat-peer ${peer.id === peerId ? 'is-current' : ''}`}>
             <div className="desktop-chat-peer__avatar">{peer.avatar_url ? <img src={peer.avatar_url} alt=""/> : peer.username.charAt(0).toUpperCase()}</div>
             <div><b>{peer.username}</b><small><MentionText text={peer.lastText} /></small></div>
           </Link>)}
           {!chatPeers.length && <p className="px-4 py-8 text-center text-sm text-zinc-500">No conversations yet</p>}
+          {!!chatPeers.length && !chatPeers.some((peer) => peer.username.toLowerCase().includes(chatSearch.trim().toLowerCase())) && <p className="px-4 py-8 text-center text-sm text-zinc-500">No matching conversations</p>}
         </div>
       </aside>
       <section className="desktop-chat-panel">
+      <Link href={`/profile/view?id=${peerId}`} className="desktop-chat-peer-header">
+        <div className="desktop-chat-peer-header__avatar">
+          {peerInfo?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={peerInfo.avatar_url} alt="" />
+          ) : (
+            <span>{(peerInfo?.username || '?').charAt(0).toUpperCase()}</span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <h1 className="flex min-w-0 items-center gap-1 font-onest text-lg font-extrabold leading-tight text-white">
+            {peerInfo?.is_sticker_creator && <StickerCreatorBadge className="h-5 w-5" />}
+            <span className="truncate">{peerInfo?.username || '...'}</span>
+            {peerInfo?.is_verified && <img src="/galka.png" alt="Verified" title="Verified" className="h-5 w-5 shrink-0 object-contain" />}
+            {peerInfo?.is_mini_app_creator && <MiniAppCreatorBadge className="h-5 w-5" />}
+          </h1>
+          {peerInfo?.handle && <p className="truncate font-inter text-xs font-medium text-zinc-500">@{peerInfo.handle}</p>}
+        </div>
+      </Link>
       <main className="desktop-chat-conversation">
         {loading ? (
           <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
