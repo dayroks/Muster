@@ -173,6 +173,22 @@ function ChatInner() {
     setMessages((prev) => mergeMessages(prev, [msg]));
   }, []);
 
+  // Keep the currently opened conversation visible in the desktop sidebar,
+  // even if the initial sidebar query returned before the history was loaded.
+  useEffect(() => {
+    if (!UUID_RE.test(peerId)) return;
+    const latest = messages[messages.length - 1];
+    setChatPeers((prev) => {
+      const current = {
+        id: peerId,
+        username: peerInfo?.username || prev.find((p) => p.id === peerId)?.username || 'Player',
+        avatar_url: peerInfo?.avatar_url ?? prev.find((p) => p.id === peerId)?.avatar_url ?? null,
+        lastText: latest?.content ?? prev.find((p) => p.id === peerId)?.lastText ?? '',
+      };
+      return [current, ...prev.filter((p) => p.id !== peerId)];
+    });
+  }, [peerId, peerInfo, messages]);
+
   // Realtime-підписка
   useEffect(() => {
     if (!idsValid) return;
