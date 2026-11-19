@@ -97,7 +97,7 @@ function ViewInner() {
         </div>
       </header>
 
-      <main className="page-enter other-profile-main mx-auto max-w-md pb-10">
+      <main className="page-enter other-profile-main mx-auto pb-10">
         {loading ? (
           <p className="py-16 text-center font-inter font-medium text-zinc-500">Loading...</p>
         ) : !profile ? (
